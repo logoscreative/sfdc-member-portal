@@ -10,13 +10,11 @@
 
 function wp_focus_program(){
 
-$currentUser = wp_get_current_user();
-
 define( 'FOCUS__PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
-define("USERNAME", "api@focus-ga.org.Partial");
-define("PASSWORD", "xhYHMa7RLMvDTFH");
-define("SECURITY_TOKEN", "8ofo544KVNo3cxsY8qCf0koA");
+$currentUser = wp_get_current_user();
+
+
 
 //define("USER_EMAIL", $current_user->user_login);
 define("USER_EMAIL", $currentUser->user_email);
@@ -36,7 +34,7 @@ if( count( $response_user_info->records ) > 0 ) {
 	$accountid = $response_user_info->records[0]->fields->AccountId;
 	$currentContactName = $response_user_info->records[0]->fields->Name;
 
-	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."')";
+	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY and Campaign.StartDate = NEXT_N_DAYS:90";
 	$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
 
 
@@ -44,7 +42,7 @@ if( count( $response_user_info->records ) > 0 ) {
 	$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
 
 	?>
-		<h2>My Programs</h2>
+		<h2>My Upcoming Programs</h2>
 		<table>
 			<tr>
 				<th></th>

@@ -6,12 +6,8 @@ Template Name: CampaignLandingPage
 <?php 
 get_header();
 
-if( $_GET['id'] ) {
-
-	define("USERNAME", "api@focus-ga.org.Partial");
-	define("PASSWORD", "xhYHMa7RLMvDTFH");
-	define("SECURITY_TOKEN", "8ofo544KVNo3cxsY8qCf0koA");
-
+if( isset( $_GET['id'] ) && $_GET['id'] ) {
+	
 	$currentUser = wp_get_current_user();
 
 	define("USER_EMAIL", $currentUser->user_email);
