@@ -34,7 +34,7 @@ if( count( $response_user_info->records ) > 0 ) {
 	$accountid = $response_user_info->records[0]->fields->AccountId;
 	$currentContactName = $response_user_info->records[0]->fields->Name;
 
-	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY and Campaign.StartDate = NEXT_N_DAYS:90";
+	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY";
 	$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
 
 
