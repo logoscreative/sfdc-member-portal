@@ -122,7 +122,7 @@ function wp_focus_program() {
 							<td>'.$record_scheduled->fields->Name.'</td>
 							<td>'.$record_scheduled->fields->StartDate.'</td>
 							<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
-							<td><a href="'.$siteURL.'/campaign?sf_campaign_id='.$record_scheduled->Id.'">More Details</a></td>
+							<td><a href="'.$siteURL.'/campaign?cmpid='.$record_scheduled->Id.'">More Details</a></td>
 					</tr>';
 				}
 			}
@@ -173,7 +173,7 @@ function render_focus_campaign_landing_page() {
 		$formId = $_GET['formid'];
 		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
 
-	} elseif( isset( $_GET['sf_campaign_id'] ) && $_GET['sf_campaign_id'] ) {
+	} elseif( isset( $_GET['cmpid'] ) && $_GET['cmpid'] ) {
 
 		$pluginsUrl = plugin_dir_path( __FILE__ );
 
@@ -218,7 +218,7 @@ function render_focus_campaign_landing_page() {
 			$query_currentaccount_contacts    = "select Id, ID__c, Name from Contact where AccountId = '" . $accountid . "'";
 			$response_currentaccount_contacts = $mySforceConnection->query( $query_currentaccount_contacts );
 
-			$query_campaigndetails    = "select Id, ID__c, Name, Description, StartDate, EndDate, Registration_Fee__c, isactive, Type from Campaign where ID='" . $_GET['sf_campaign_id'] . "'";
+			$query_campaigndetails    = "select Id, ID__c, Name, Description, StartDate, EndDate, Registration_Fee__c, isactive, Type from Campaign where ID='" . $_GET['cmpid'] . "'";
 			$response_campaigndetails = $mySforceConnection->query( $query_campaigndetails );
 
 			//Fetch mapping of form and campaign type from SF custom object "Program Forms"
@@ -278,14 +278,14 @@ function render_focus_campaign_landing_page() {
 
 						foreach ($response_currentaccount_contacts->records as $record_contact) {
 
-							$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->fields->ID__c . '&sf_campaign_id=' . $campaigndetails->fields->ID__c . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
+							$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->fields->ID__c . '&cmpid=' . $campaigndetails->fields->ID__c . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
 						}
 
 						$content .= '</ul>';
 
 					} else {
 
-						$content .= '<p><a class="button" href="' . $siteURL . '/campaign?sf_campaign_id=' . $campaigndetails->fields->ID__c . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
+						$content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campaigndetails->fields->ID__c . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
 
 					}
 
