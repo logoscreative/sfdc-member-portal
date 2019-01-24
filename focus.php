@@ -15,6 +15,9 @@ function load_dashicons_front_end() {
 	wp_enqueue_style( 'dashicons' );
 }
 
+// Add Programs shortcode [focus_programs]
+add_shortcode( 'focus_programs', 'wp_focus_program' );
+
 function wp_focus_program() {
 
 	// Do not render shortcode in the admin area
@@ -133,8 +136,7 @@ function wp_focus_program() {
 	}
 }
 
-add_shortcode( 'focus_programs', 'wp_focus_program' );
-
+// Enqueue modal scripts and styles
 add_action( 'wp_enqueue_scripts', 'load_jquery_modal' );
 
 function load_jquery_modal() {
@@ -155,6 +157,9 @@ function load_jquery_modal() {
 
 	}
 }
+
+// Add Campaigns shortcode [focus_campaign]
+add_shortcode( 'focus_campaign', 'render_focus_campaign_landing_page' );
 
 function render_focus_campaign_landing_page() {
 
@@ -298,5 +303,3 @@ function render_focus_campaign_landing_page() {
 
 	}
 }
-
-add_shortcode( 'focus_campaign_landing_page', 'render_focus_campaign_landing_page' );
