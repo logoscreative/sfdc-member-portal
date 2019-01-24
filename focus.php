@@ -119,7 +119,7 @@ function wp_focus_program() {
 							<td>'.$record_scheduled->fields->Name.'</td>
 							<td>'.$record_scheduled->fields->StartDate.'</td>
 							<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
-							<td><a href="'.$siteURL.'/campaign-details?id='.$record_scheduled->Id.'">More Details</a></td>
+							<td><a href="'.$siteURL.'/campaign?sf_campaign_id='.$record_scheduled->Id.'">More Details</a></td>
 					</tr>';
 				}
 			}
@@ -135,20 +135,168 @@ function wp_focus_program() {
 
 add_shortcode( 'focus_programs', 'wp_focus_program' );
 
-function render_focus_dynamic_form() {
+add_action( 'wp_enqueue_scripts', 'load_jquery_modal' );
 
-	if ( !isset($_GET['formid']) || !$_GET['formid'] ) {
+function load_jquery_modal() {
+	if ( is_page('campaign') ) {
+
+		wp_enqueue_script(
+			'jQuery-modal',
+			'https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js',
+			array('jquery'),
+			false,
+			true
+		);
+
+		wp_enqueue_style(
+			'jQuery-modal',
+			'https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css'
+		);
+
+	}
+}
+
+function render_focus_campaign_landing_page() {
+
+	// Do not render shortcode in the admin area
+	if ( is_admin() ) {
 		return;
 	}
 
-	$formId = $_GET['formid'];
+	if ( ( isset($_GET['formid']) && $_GET['formid'] ) && shortcode_exists('formassembly') ) {
 
-	if ( $formId && shortcode_exists('formassembly') ) {
-
+		$formId = $_GET['formid'];
 		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
 
-	}
+	} elseif( isset( $_GET['sf_campaign_id'] ) && $_GET['sf_campaign_id'] ) {
 
+		$pluginsUrl = plugin_dir_path( __FILE__ );
+
+		$currentUser = wp_get_current_user();
+		$userEmail = $currentUser->user_email;
+
+		// Allow debugging
+		if ( isset($_GET['sfdc_user_email']) && $_GET['sfdc_user_email'] ) {
+			$userEmail = $_GET['sfdc_user_email'];
+		}
+
+		$storedUsername = '';
+		if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
+			$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
+		}
+
+		$storedPassword = '';
+		if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
+			$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
+		}
+
+		$storedSecurityToken = '';
+		if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
+			$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
+		}
+
+		require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
+
+		$mySforceConnection = new SforcePartnerClient();
+		$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
+		$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
+
+		$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
+		$response_user_info = $mySforceConnection->query($query_user_info);
+
+		if( count( $response_user_info->records ) > 0 ) {
+
+			$contactid          = $response_user_info->records[0]->Id;
+			$accountid          = $response_user_info->records[0]->fields->AccountId;
+			$currentContactName = $response_user_info->records[0]->fields->Name;
+
+			$query_currentaccount_contacts    = "select Id, ID__c, Name from Contact where AccountId = '" . $accountid . "'";
+			$response_currentaccount_contacts = $mySforceConnection->query( $query_currentaccount_contacts );
+
+			$query_campaigndetails    = "select Id, ID__c, Name, Description, StartDate, EndDate, Registration_Fee__c, isactive, Type from Campaign where ID='" . $_GET['sf_campaign_id'] . "'";
+			$response_campaigndetails = $mySforceConnection->query( $query_campaigndetails );
+
+			//Fetch mapping of form and campaign type from SF custom object "Program Forms"
+			$query_form_campaign_mapping    = "select Name, Form_Number__c, Individual_Request__c from Program_Forms__c";
+			$response_form_campaign_mapping = $mySforceConnection->query( $query_form_campaign_mapping );
+			$formCampaignMapping            = array();
+			foreach ( $response_form_campaign_mapping->records as $record_mapping ) {
+				$programFormRecord = (object) [
+					"formNumber"          => $record_mapping->fields->Form_Number__c,
+					"isIndividualRequest" => $record_mapping->fields->Individual_Request__c
+				];
+				//$formCampaignMapping[ $record_mapping->fields->Name ] = $record_mapping->fields->Form_Number__c;
+				$formCampaignMapping[ $record_mapping->fields->Name ] = $programFormRecord;
+			}
+
+			$siteURL = get_site_url();
+
+			if ( count( $response_campaigndetails->records ) > 0 ) {
+
+				$campaigndetails = $response_campaigndetails->records[0];
+
+				$content = '';
+
+				$content .= '<h2>' . $campaigndetails->fields->Name . '</h2>';
+				$content .= '<p>' . $campaigndetails->fields->Description . '</p>';
+
+				$content .= '
+					<table>
+						<tr>
+							<th>Start Date</th>
+							<th>End Date</th>
+							<th>Campaign Type</th>
+							<th>Registration Fee</th>
+						</tr>';
+
+				$content .=
+					'<tr>
+						<td>' . $campaigndetails->fields->StartDate . '</td>
+						<td>' . $campaigndetails->fields->EndDate . '</td>
+						<td>' . $campaigndetails->fields->Type . '</td>
+						<td>' . $campaigndetails->fields->Registration_Fee__c . '</td>
+					</tr>';
+
+				$content .= '</table>';
+
+				if ( $formCampaignMapping[ $campaigndetails->fields->Type ] ) {
+
+					if ( $formCampaignMapping[ $campaigndetails->fields->Type ]->isIndividualRequest == 'true' ) {
+
+						//show modal
+						$content .= '<p><a class="button" href="#ex1" rel="modal:open">Sign Up</a></p>';
+
+						$content .= '
+						<div id="ex1" class="modal">
+							<h4>Select Member</h4>
+							<ul>';
+
+						foreach ($response_currentaccount_contacts->records as $record_contact) {
+
+							$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->fields->ID__c . '&sf_campaign_id=' . $campaigndetails->fields->ID__c . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
+						}
+
+						$content .= '</ul>';
+
+					} else {
+
+						$content .= '<p><a class="button" href="' . $siteURL . '/campaign?sf_campaign_id=' . $campaigndetails->fields->ID__c . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
+
+					}
+
+				}
+
+				echo $content;
+
+			}
+
+		}
+
+	} else {
+
+		echo '<p>No campaign selected.</p>';
+
+	}
 }
 
-add_shortcode( 'focus_dynamic_form', 'render_focus_dynamic_form' );
+add_shortcode( 'focus_campaign_landing_page', 'render_focus_campaign_landing_page' );
