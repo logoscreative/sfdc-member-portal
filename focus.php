@@ -10,26 +10,37 @@
 
 function wp_focus_program(){
 
-define( 'FOCUS__PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+$pluginsUrl = plugin_dir_path( __FILE__ );
 
 $currentUser = wp_get_current_user();
+$userEmail = $currentUser->user_email;
 
+$storedUsername = '';
+if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
+	$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
+}
 
+$storedPassword = '';
+if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
+	$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
+}
 
-//define("USER_EMAIL", $current_user->user_login);
-define("USER_EMAIL", $currentUser->user_email);
+$storedSecurityToken = '';
+if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
+	$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
+}
 
-require_once (FOCUS__PLUGIN_DIR . 'soapclient/SforcePartnerClient.php');
+require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
 
 $mySforceConnection = new SforcePartnerClient();
-$mySforceConnection->createConnection(FOCUS__PLUGIN_DIR . "PartnerWSDL.xml");
-$mySforceConnection->login(USERNAME, PASSWORD.SECURITY_TOKEN);
+$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
+$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
 
-$query_user_info = "select id, Name, accountid from contact where Contact.email = '".USER_EMAIL."'";
+$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
 $response_user_info = $mySforceConnection->query($query_user_info);
 $siteURL = get_site_url();
 //if respective contact found at SF then only show programs
-if( count( $response_user_info->records ) > 0 ) { 
+if( count( $response_user_info->records ) > 0 ) {
 	$contactid = $response_user_info->records[0]->Id;
 	$accountid = $response_user_info->records[0]->fields->AccountId;
 	$currentContactName = $response_user_info->records[0]->fields->Name;
@@ -86,14 +97,14 @@ if( count( $response_user_info->records ) > 0 ) {
 						<td>'.$record_scheduled->fields->StartDate.'</td>
 						<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
 						<td>';
-							echo '<a href="'.$siteURL.'/campaign-details?id='.$record_scheduled->Id.'">More Details</a>';	
+							echo '<a href="'.$siteURL.'/campaign-details?id='.$record_scheduled->Id.'">More Details</a>';
 					echo '</td>
 					</tr>';
 				}
 			}
 		?>
 		</table>
-	<?php		
+	<?php
 	} else { //if not respective contact as WP user found at SF then display message
 		echo '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
 	}

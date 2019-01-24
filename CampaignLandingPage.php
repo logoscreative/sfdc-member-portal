@@ -3,25 +3,41 @@
 Template Name: CampaignLandingPage
 */
 ?>
-<?php 
+<?php
 get_header();
 
 if( isset( $_GET['id'] ) && $_GET['id'] ) {
-	
+
+	$pluginsUrl = plugin_dir_path( __FILE__ );
+
 	$currentUser = wp_get_current_user();
+	$userEmail = $currentUser->user_email;
 
-	define("USER_EMAIL", $currentUser->user_email);
+	$storedUsername = '';
+	if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
+		$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
+	}
 
-	require_once (get_template_directory() . '/inc/soapclient/SforcePartnerClient.php');
+	$storedPassword = '';
+	if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
+		$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
+	}
+
+	$storedSecurityToken = '';
+	if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
+		$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
+	}
+
+	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
 
 	$mySforceConnection = new SforcePartnerClient();
 	$mySforceConnection->createConnection( get_template_directory() . "/inc/PartnerWSDL.xml");
-	$mySforceConnection->login(USERNAME, PASSWORD.SECURITY_TOKEN);
+	$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
 
-	$query_user_info = "select id, Name, accountid from contact where Contact.email = '".USER_EMAIL."'";
+	$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
 	$response_user_info = $mySforceConnection->query($query_user_info);
 
-	if( count( $response_user_info->records ) > 0 ) { 
+	if( count( $response_user_info->records ) > 0 ) {
 
 		$contactid = $response_user_info->records[0]->Id;
 		$accountid = $response_user_info->records[0]->fields->AccountId;
@@ -55,15 +71,15 @@ if( isset( $_GET['id'] ) && $_GET['id'] ) {
 
 			<div class="content">
 				<div class="pad group">
-				
+
 					<div class="page-title">
 						<h2><?php echo $campaigndetails->fields->Name ?></h2>
 					</div>
 
 					<?php while ( have_posts() ): the_post(); ?>
-				
-						<article <?php post_class('entry boxed group'); ?>>						
-		
+
+						<article <?php post_class('entry boxed group'); ?>>
+
 							<div class="entry-inner pad">
 								<div class="entry-content themeform">
 									<div class="campaign-description">
@@ -97,7 +113,7 @@ if( isset( $_GET['id'] ) && $_GET['id'] ) {
 										</div>
 									</div>
 									<div class="campaign-btn">
-										<?php 
+										<?php
 											if( $formCampaignMapping[ $campaigndetails->fields->Type ] ) {
 												if( $formCampaignMapping[ $campaigndetails->fields->Type ]->isIndividualRequest == 'true' ) {
 													//show modal
@@ -111,16 +127,16 @@ if( isset( $_GET['id'] ) && $_GET['id'] ) {
 									<?php the_content(); ?>
 
 									<div class="clear"></div>
-								</div><!--/.entry-content-->	
+								</div><!--/.entry-content-->
 							</div><!--/.entry-inner-->
 
 						</article>
-						
+
 						<?php if ( comments_open() || get_comments_number() ) :	comments_template( '/comments.php', true ); endif; ?>
-						
+
 					<?php endwhile; ?>
-					
-				</div><!--/.pad-->			
+
+				</div><!--/.pad-->
 			</div><!--/.content-->
 
 			<!-- Family contacts modal - start -->
@@ -135,13 +151,13 @@ if( isset( $_GET['id'] ) && $_GET['id'] ) {
 						<div class="modal-body">
 							<ul>
 								<?php
-								foreach ($response_currentaccount_contacts->records as $record_contact) { 
+								foreach ($response_currentaccount_contacts->records as $record_contact) {
 								 ?>
 									<li class="contact-listitem">
 										<?php echo '<a href="'.$siteURL.'/campaignregistration/?cntid='.$record_contact->fields->ID__c.'&cmpid='.$campaigndetails->fields->ID__c.'&formid='.$formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber.'">'.$record_contact->fields->Name.'</a>'; ?>
-											
+
 									</li>
-								<?php } 
+								<?php }
 								?>
 							</ul>
 						</div>
@@ -150,13 +166,13 @@ if( isset( $_GET['id'] ) && $_GET['id'] ) {
 			</div>
 			<!-- Family contacts modal - end -->
 
-		<?php 
+		<?php
 			echo '<script>
 				function showMembersModal() {
-					document.getElementById("individual_requestmodal").style.display = "block"; 
-				} 
-				function hideMembersModal() { 
-					document.getElementById("individual_requestmodal").style.display = "none"; 
+					document.getElementById("individual_requestmodal").style.display = "block";
+				}
+				function hideMembersModal() {
+					document.getElementById("individual_requestmodal").style.display = "none";
 				}
 			</script>
 			<style>
