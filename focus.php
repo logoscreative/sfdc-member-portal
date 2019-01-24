@@ -8,12 +8,29 @@
  * Author URI: http://www.cloudlandtechnologies.com
  */
 
+// Enqueue Dashicons for calendar icon
+add_action( 'wp_enqueue_scripts', 'load_dashicons_front_end' );
+
+function load_dashicons_front_end() {
+	wp_enqueue_style( 'dashicons' );
+}
+
 function wp_focus_program() {
+
+	// Do not render shortcode in the admin area
+	if ( is_admin() ) {
+		return;
+	}
 
 	$pluginsUrl = plugin_dir_path( __FILE__ );
 
 	$currentUser = wp_get_current_user();
 	$userEmail = $currentUser->user_email;
+
+	// Allow debugging
+	if ( isset($_GET['sfdc_user_email']) && $_GET['sfdc_user_email'] ) {
+		$userEmail = $_GET['sfdc_user_email'];
+	}
 
 	$storedUsername = '';
 	if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
@@ -36,7 +53,7 @@ function wp_focus_program() {
 	$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
 	$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
 
-	$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
+	$query_user_info = "select id, Name, accountid from contact where Contact.email = '" . $userEmail . "'";
 	$response_user_info = $mySforceConnection->query($query_user_info);
 	$siteURL = get_site_url();
 
@@ -53,66 +70,70 @@ function wp_focus_program() {
 		$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isactive, Type, RecordTypeId, ID__c from Campaign where isactive=true and startdate > TODAY and startdate = NEXT_N_DAYS:90";
 		$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
 
-		?>
-			<h2>My Upcoming Programs</h2>
+		$content = '';
+
+		$content .=	'<h2>My Upcoming Programs</h2>
 			<table>
 				<tr>
 					<th></th>
-					<th>Name </th>
-					<th>Program </th>
+					<th>Name</th>
+					<th>Program</th>
 					<th>Date</th>
-				</tr>
-		<?php
-				foreach ($response_programs_signedup->records as $record_signedup) {
-					echo '<tr>
-						<td><i class="fa fa-calendar"></i></td>
+				</tr>';
+
+			foreach ($response_programs_signedup->records as $record_signedup) {
+				$content .=
+					'<tr>
+						<td><span class="dashicons dashicons-calendar-alt"></span></td>
 						<td>'.$record_signedup->fields->Contact->fields->Name.'</td>
 						<td>'.$record_signedup->fields->Campaign->fields->Name.'</td>
 						<td>'.$record_signedup->fields->Campaign->fields->StartDate.'</td>
 					</tr>';
-				}
-		?>
-			</table>
-			<br/>
-			<h2>Featured Programs</h2>
+			}
+
+		$content .= '</table>';
+
+		$content .=	'<h2>Featured Programs</h2>
 			<table>
 				<tr>
 					<th></th>
-					<th>Program </th>
+					<th>Program</th>
 					<th>Date</th>
 					<th>Cost</th>
 					<th>Sign Up</th>
-				</tr>
-			<?php
+				</tr>';
+
 			foreach ($response_programs_scheduled->records as $record_scheduled) {
-				$addtolist = TRUE;
+
+				$addtolist = true;
 				foreach ($response_programs_signedup->records as $record_signedup) {
 					if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
-						$addtolist = FALSE;
+						$addtolist = false;
 					}
 				}
-				if ($addtolist == TRUE) {
-					echo '<tr>
-						<td><i class="fa fa-calendar"></i></td>
-						<td>'.$record_scheduled->fields->Name.'</td>
-						<td>'.$record_scheduled->fields->StartDate.'</td>
-						<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
-						<td>';
-							echo '<a href="'.$siteURL.'/campaign-details?id='.$record_scheduled->Id.'">More Details</a>';
-					echo '</td>
+
+				if ($addtolist) {
+					$content .=
+						'<tr>
+							<td><span class="dashicons dashicons-calendar-alt"></span></td>
+							<td>'.$record_scheduled->fields->Name.'</td>
+							<td>'.$record_scheduled->fields->StartDate.'</td>
+							<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
+							<td><a href="'.$siteURL.'/campaign-details?id='.$record_scheduled->Id.'">More Details</a></td>
 					</tr>';
 				}
 			}
-		?>
-		</table>
-	<?php
+
+		$content .= '</table>';
+		echo $content;
+
 	} else {
 		//if not respective contact as WP user found at SF then display message
 		echo '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
 	}
 }
 
-add_shortcode('focus_programs','wp_focus_program');
+add_shortcode( 'focus_programs', 'wp_focus_program' );
 
 function render_focus_dynamic_form() {
 
