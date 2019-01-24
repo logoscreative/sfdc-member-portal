@@ -126,14 +126,6 @@ function render_focus_dynamic_form() {
 
 		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
 
-	} else {
-
-		if ( $formId ) {
-
-			var_dump($formId);
-
-		}
-
 	}
 
 }
