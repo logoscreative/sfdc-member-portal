@@ -8,81 +8,82 @@
  * Author URI: http://www.cloudlandtechnologies.com
  */
 
-function wp_focus_program(){
+function wp_focus_program() {
 
-$pluginsUrl = plugin_dir_path( __FILE__ );
+	$pluginsUrl = plugin_dir_path( __FILE__ );
 
-$currentUser = wp_get_current_user();
-$userEmail = $currentUser->user_email;
+	$currentUser = wp_get_current_user();
+	$userEmail = $currentUser->user_email;
 
-$storedUsername = '';
-if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
-	$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
-}
+	$storedUsername = '';
+	if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
+		$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
+	}
 
-$storedPassword = '';
-if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
-	$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
-}
+	$storedPassword = '';
+	if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
+		$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
+	}
 
-$storedSecurityToken = '';
-if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
-	$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
-}
+	$storedSecurityToken = '';
+	if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
+		$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
+	}
 
-require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
+	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
 
-$mySforceConnection = new SforcePartnerClient();
-$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
-$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
+	$mySforceConnection = new SforcePartnerClient();
+	$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
+	$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
 
-$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
-$response_user_info = $mySforceConnection->query($query_user_info);
-$siteURL = get_site_url();
-//if respective contact found at SF then only show programs
-if( count( $response_user_info->records ) > 0 ) {
-	$contactid = $response_user_info->records[0]->Id;
-	$accountid = $response_user_info->records[0]->fields->AccountId;
-	$currentContactName = $response_user_info->records[0]->fields->Name;
+	$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
+	$response_user_info = $mySforceConnection->query($query_user_info);
+	$siteURL = get_site_url();
 
-	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY";
-	$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
+	//if respective contact found at SF then only show programs
+	if ( count( $response_user_info->records ) > 0 ) {
+		$contactid = $response_user_info->records[0]->Id;
+		$accountid = $response_user_info->records[0]->fields->AccountId;
+		$currentContactName = $response_user_info->records[0]->fields->Name;
+
+		$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY";
+		$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
 
 
-	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isactive, Type, RecordTypeId, ID__c from Campaign where isactive=true and startdate > TODAY and startdate = NEXT_N_DAYS:90";
-	$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
+		$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isactive, Type, RecordTypeId, ID__c from Campaign where isactive=true and startdate > TODAY and startdate = NEXT_N_DAYS:90";
+		$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
 
-	?>
-		<h2>My Upcoming Programs</h2>
-		<table>
-			<tr>
-				<th></th>
-				<th>Name </th>
-				<th>Program </th>
-				<th>Date</th>
-			</tr>
-	<?php
-			foreach ($response_programs_signedup->records as $record_signedup) {
-				echo '<tr>
-					<td><i class="fa fa-calendar"></i></td>
-					<td>'.$record_signedup->fields->Contact->fields->Name.'</td>
-					<td>'.$record_signedup->fields->Campaign->fields->Name.'</td>
-					<td>'.$record_signedup->fields->Campaign->fields->StartDate.'</td>
-				</tr>';
-			}
-	?>
-		</table>
-		<br/>
-		<h2>Featured Programs</h2>
-		<table>
-			<tr>
-				<th></th>
-				<th>Program </th>
-				<th>Date</th>
-				<th>Cost</th>
-				<th>Sign Up</th>
-			</tr>
+		?>
+			<h2>My Upcoming Programs</h2>
+			<table>
+				<tr>
+					<th></th>
+					<th>Name </th>
+					<th>Program </th>
+					<th>Date</th>
+				</tr>
 		<?php
+				foreach ($response_programs_signedup->records as $record_signedup) {
+					echo '<tr>
+						<td><i class="fa fa-calendar"></i></td>
+						<td>'.$record_signedup->fields->Contact->fields->Name.'</td>
+						<td>'.$record_signedup->fields->Campaign->fields->Name.'</td>
+						<td>'.$record_signedup->fields->Campaign->fields->StartDate.'</td>
+					</tr>';
+				}
+		?>
+			</table>
+			<br/>
+			<h2>Featured Programs</h2>
+			<table>
+				<tr>
+					<th></th>
+					<th>Program </th>
+					<th>Date</th>
+					<th>Cost</th>
+					<th>Sign Up</th>
+				</tr>
+			<?php
 			foreach ($response_programs_scheduled->records as $record_scheduled) {
 				$addtolist = TRUE;
 				foreach ($response_programs_signedup->records as $record_signedup) {
@@ -105,10 +106,36 @@ if( count( $response_user_info->records ) > 0 ) {
 		?>
 		</table>
 	<?php
-	} else { //if not respective contact as WP user found at SF then display message
+	} else {
+		//if not respective contact as WP user found at SF then display message
 		echo '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
 	}
 }
+
 add_shortcode('focus_programs','wp_focus_program');
 
-?>
+function render_focus_dynamic_form() {
+
+	if ( !isset($_GET['formid']) || !$_GET['formid'] ) {
+		return;
+	}
+
+	$formId = $_GET['formid'];
+
+	if ( $formId && shortcode_exists('formassembly') ) {
+
+		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
+
+	} else {
+
+		if ( $formId ) {
+
+			var_dump($formId);
+
+		}
+
+	}
+
+}
+
+add_shortcode( 'focus_dynamic_form', 'render_focus_dynamic_form' );
