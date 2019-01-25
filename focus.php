@@ -15,10 +15,10 @@ function load_dashicons_front_end() {
 	wp_enqueue_style( 'dashicons' );
 }
 
-// Add Programs shortcode [sfdc_programs]
-add_shortcode( 'sfdc_programs', 'wp_sfdc_program' );
+// Add Programs shortcode [focus_programs]
+add_shortcode( 'focus_programs', 'wp_focus_program' );
 
-function wp_sfdc_program() {
+function wp_focus_program() {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -158,10 +158,10 @@ function load_jquery_modal() {
 	}
 }
 
-// Add Campaigns shortcode [sfdc_campaign]
-add_shortcode( 'sfdc_campaign', 'render_sfdc_campaign_landing_page' );
+// Add Campaigns shortcode [focus_campaign]
+add_shortcode( 'focus_campaign', 'render_focus_campaign_landing_page' );
 
-function render_sfdc_campaign_landing_page() {
+function render_focus_campaign_landing_page() {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
