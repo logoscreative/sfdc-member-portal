@@ -175,7 +175,7 @@ function render_focus_campaign_landing_page() {
 		$formId = $_GET['formid'];
 		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
 
-	} elseif( isset( $_GET['cmpid'] ) && $_GET['cntid'] ) {
+	} elseif( isset( $_GET['cmpid'] ) && $_GET['cmpid'] ) {
 
 		$pluginsUrl = plugin_dir_path( __FILE__ );
 
