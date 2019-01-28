@@ -304,3 +304,99 @@ function render_focus_campaign_landing_page() {
 
 	}
 } 
+
+
+// Add Volunteer Jobs [focus_volunteers]
+add_shortcode( 'focus_volunteers', 'render_focus_volunteer_landing_page' );
+
+function render_focus_volunteer_landing_page() {
+
+	$siteURL = get_site_url();
+	// Do not render shortcode in the admin area
+	if ( is_admin() ) {
+		return;
+	}
+
+	$pluginsUrl = plugin_dir_path( __FILE__ );
+
+	$currentUser = wp_get_current_user();
+	$userEmail = $currentUser->user_email;
+
+	// Allow debugging
+	if ( isset($_GET['sfdc_user_email']) && $_GET['sfdc_user_email'] ) {
+		$userEmail = $_GET['sfdc_user_email'];
+	}
+
+	$storedUsername = '';
+	if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
+		$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
+	}
+
+	$storedPassword = '';
+	if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
+		$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
+	}
+
+	$storedSecurityToken = '';
+	if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
+		$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
+	}
+
+	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
+
+	$mySforceConnection = new SforcePartnerClient();
+	$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
+	$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
+
+	$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
+	$response_user_info = $mySforceConnection->query($query_user_info);
+
+	if( count( $response_user_info->records ) > 0 ) {
+		$contactid          = $response_user_info->records[0]->Id;
+		$accountid          = $response_user_info->records[0]->fields->AccountId;
+		$currentContactName = $response_user_info->records[0]->fields->Name;
+
+		if ( isset($_GET['jobid']) && $_GET['jobid'] ) { //detail page
+
+			$query_opportunity = "select Id, Name, Amount, CloseDate from Opportunity where Id ='".$_GET['jobid']."'";
+			$response_opportunity = $mySforceConnection->query( $query_opportunity );
+			
+			if( count( $response_opportunity->records ) > 0 ) { 
+				$opportunity_record = $response_opportunity->records[0];
+				?>
+				<p><b>Name : </b> <?php echo $opportunity_record->fields->Name; ?></p>
+				<p><b>Amount : </b> <?php echo $opportunity_record->fields->Amount; ?></p>
+				<p><b>Close Date : </b> <?php $opportunity_record->fields->CloseDate; ?></p>
+			<?php
+			} else { ?>
+				<p>No Job Found</p>
+			<?php
+			}
+		} else { //display list of volunteer jobs
+
+			$query_opportunity_recordtype = "select Id from RecordType where Name ='Membership'";
+			$response_opportunity_recordtype = $mySforceConnection->query( $query_opportunity_recordtype );
+
+			if( count( $response_opportunity_recordtype->records ) > 0 ) {
+
+				$recordTypeId = $response_opportunity_recordtype->records[0]->Id;
+
+				$query_opportunites = "select Id, Name from Opportunity where RecordTypeId = '".$recordTypeId."'";
+				$response_opportunities = $mySforceConnection->query( $query_opportunites );
+				if( count( $response_opportunities->records ) > 0 ) {
+					echo '<ul>';
+					foreach ( $response_opportunities->records as $record_opportunity ) {
+						echo '<li><a href="'.$siteURL.'/volunteer-jobs/?jobid='.$record_opportunity->Id.'">'.$record_opportunity->fields->Name.'</a></li>';
+					}
+					echo '</ul>';
+				}				
+			}
+			
+		}
+
+	} else {
+		echo '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
+	}
+
+	 
+}
