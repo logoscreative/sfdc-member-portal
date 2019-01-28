@@ -109,11 +109,12 @@ function wp_focus_program() {
 			foreach ($response_programs_scheduled->records as $record_scheduled) {
 
 				$addtolist = true;
-				foreach ($response_programs_signedup->records as $record_signedup) {
+				// This section is to remove the existing events users has signed up for.   This likely needs to change to an marker instead.
+				/*foreach ($response_programs_signedup->records as $record_signedup) {
 					if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
 						$addtolist = false;
 					}
-				}
+				} */
 
 				if ($addtolist) {
 					$content .=
@@ -174,7 +175,7 @@ function render_focus_campaign_landing_page() {
 		$formId = $_GET['formid'];
 		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
 
-	} elseif( isset( $_GET['cmpid'] ) && $_GET['cmpid'] ) {
+	} elseif( isset( $_GET['cmpid'] ) && $_GET['cntid'] ) {
 
 		$pluginsUrl = plugin_dir_path( __FILE__ );
 
