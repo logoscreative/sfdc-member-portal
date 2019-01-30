@@ -20,63 +20,28 @@ add_shortcode( 'focus_programs', 'wp_focus_program' );
 
 function wp_focus_program() {
 
-	// Do not render shortcode in the admin area
-	if ( is_admin() ) {
-		return;
-	}
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
 
-	$pluginsUrl = plugin_dir_path( __FILE__ );
-
-	$currentUser = wp_get_current_user();
-	$userEmail = $currentUser->user_email;
-
-	// Allow debugging
-	if ( isset($_GET['sfdc_user_email']) && $_GET['sfdc_user_email'] ) {
-		$userEmail = $_GET['sfdc_user_email'];
-	}
-
-	$storedUsername = '';
-	if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
-		$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
-	}
-
-	$storedPassword = '';
-	if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
-		$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
-	}
-
-	$storedSecurityToken = '';
-	if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
-		$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
-	}
-
-	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
-
-	$mySforceConnection = new SforcePartnerClient();
-	$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
-	$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
-
-	$query_user_info = "select id, Name, accountid from contact where Contact.email = '" . $userEmail . "'";
-	$response_user_info = $mySforceConnection->query($query_user_info);
 	$siteURL = get_site_url();
 
-	//if respective contact found at SF then only show programs
-	 if ( count( $response_user_info->records ) > 0 ) {
-		$contactid = $response_user_info->records[0]->Id;
-		$accountid = $response_user_info->records[0]->fields->AccountId;
-		$currentContactName = $response_user_info->records[0]->fields->Name;
-
-		$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY";
-		$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
+	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isactive=true and Campaign.StartDate > TODAY";
+	$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
 
 
-		$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isactive, Type, RecordTypeId, ID__c from Campaign where isactive=true and startdate > TODAY and startdate = NEXT_N_DAYS:90";
-		$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
+	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isactive, Type, RecordTypeId, ID__c from Campaign where isactive=true and startdate > TODAY and startdate = NEXT_N_DAYS:90";
+	$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
 
-		$content = '';
+	$content = '';
 
-		$content .=	'<h2>My Upcoming Programs</h2>
-			<table>
+	$content .=	'<h2>My Upcoming Programs</h2>';
+	if( count( $response_programs_signedup->records ) == 0 ) {
+		$content .=	'<p>No programs found</p>';
+	} else {
+		$content .=	'<table>
 				<tr>
 					<th></th>
 					<th>Name</th>
@@ -95,46 +60,49 @@ function wp_focus_program() {
 			}
 
 		$content .= '</table>';
+	}
 
-		$content .=	'<h2>Featured Programs</h2>
-			<table>
-				<tr>
-					<th></th>
-					<th>Program</th>
-					<th>Date</th>
-					<th>Cost</th>
-					<th>Sign Up</th>
-				</tr>';
+	$content .=	'<h2>Featured Programs</h2>';
 
-			foreach ($response_programs_scheduled->records as $record_scheduled) {
+	if( count( $response_programs_scheduled->records ) == 0 ) {
 
-				$addtolist = true;
-				// This section is to remove the existing events users has signed up for.   This likely needs to change to an marker instead.
-				/*foreach ($response_programs_signedup->records as $record_signedup) {
-					if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
-						$addtolist = false;
-					}
-				} */
+		$content .=	'<p>No programs found</p>';
 
-				if ($addtolist) {
-					$content .=
-						'<tr>
-							<td><span class="dashicons dashicons-calendar-alt"></span></td>
-							<td>'.$record_scheduled->fields->Name.'</td>
-							<td>'.$record_scheduled->fields->StartDate.'</td>
-							<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
-							<td><a href="'.$siteURL.'/campaign?cmpid='.$record_scheduled->Id.'">More Details</a></td>
-					</tr>';
+	} else {
+
+		$content .=	'<table>
+			<tr>
+				<th></th>
+				<th>Program</th>
+				<th>Date</th>
+				<th>Cost</th>
+				<th>Sign Up</th>
+			</tr>';
+
+		foreach ($response_programs_scheduled->records as $record_scheduled) {
+
+			$addtolist = true;
+			foreach ($response_programs_signedup->records as $record_signedup) {
+				if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
+					$addtolist = false;
 				}
 			}
 
-		$content .= '</table>';
-		echo $content;
+			if ($addtolist) {
+				$content .=
+					'<tr>
+						<td><span class="dashicons dashicons-calendar-alt"></span></td>
+						<td>'.$record_scheduled->fields->Name.'</td>
+						<td>'.$record_scheduled->fields->StartDate.'</td>
+						<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
+						<td><a href="'.$siteURL.'/campaign?cmpid='.$record_scheduled->Id.'">More Details</a></td>
+				</tr>';
+			}
+		}
 
-	} else {
-		//if not respective contact as WP user found at SF then display message
-		echo '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
-	} 
+		$content .= '</table>';
+	}
+	echo $content;
 }
 
 // Enqueue modal scripts and styles
@@ -165,10 +133,11 @@ function load_jquery_modal() {
 
 function render_focus_campaign_landing_page() {
 
-	// Do not render shortcode in the admin area
-	if ( is_admin() ) {
-		return;
-	}
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
 
 	if ( ( isset($_GET['formid']) && $_GET['formid'] ) && shortcode_exists('formassembly') ) {
 
@@ -177,126 +146,86 @@ function render_focus_campaign_landing_page() {
 
 	} elseif( isset( $_GET['cmpid'] ) && $_GET['cmpid'] ) {
 
-		$pluginsUrl = plugin_dir_path( __FILE__ );
+		$query_currentaccount_contacts    = "select Id, ID__c, Name from Contact where AccountId = '" . $accountid . "'";
+		$response_currentaccount_contacts = $mySforceConnection->query( $query_currentaccount_contacts );
 
-		$currentUser = wp_get_current_user();
-		$userEmail = $currentUser->user_email;
+		$query_campaigndetails    = "select Id, ID__c, Name, Description, StartDate, EndDate, Registration_Fee__c, isactive, Type from Campaign where ID='" . $_GET['cmpid'] . "'";
+		$response_campaigndetails = $mySforceConnection->query( $query_campaigndetails );
 
-		// Allow debugging
-		if ( isset($_GET['sfdc_user_email']) && $_GET['sfdc_user_email'] ) {
-			$userEmail = $_GET['sfdc_user_email'];
+		//Fetch mapping of form and campaign type from SF custom object "Program Forms"
+		$query_form_campaign_mapping    = "select Name, Form_Number__c, Individual_Request__c from Program_Forms__c";
+		$response_form_campaign_mapping = $mySforceConnection->query( $query_form_campaign_mapping );
+		$formCampaignMapping            = array();
+		foreach ( $response_form_campaign_mapping->records as $record_mapping ) {
+			$programFormRecord = (object) [
+				"formNumber"          => $record_mapping->fields->Form_Number__c,
+				"isIndividualRequest" => $record_mapping->fields->Individual_Request__c
+			];
+			//$formCampaignMapping[ $record_mapping->fields->Name ] = $record_mapping->fields->Form_Number__c;
+			$formCampaignMapping[ $record_mapping->fields->Name ] = $programFormRecord;
 		}
 
-		$storedUsername = '';
-		if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
-			$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
-		}
+		$siteURL = get_site_url();
 
-		$storedPassword = '';
-		if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
-			$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
-		}
+		if ( count( $response_campaigndetails->records ) > 0 ) {
 
-		$storedSecurityToken = '';
-		if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
-			$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
-		}
+			$campaigndetails = $response_campaigndetails->records[0];
 
-		require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
+			$content = '';
 
-		$mySforceConnection = new SforcePartnerClient();
-		$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
-		$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
+			$content .= '<h2>' . $campaigndetails->fields->Name . '</h2>';
+			$content .= '<p>' . $campaigndetails->fields->Description . '</p>';
 
-		$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
-		$response_user_info = $mySforceConnection->query($query_user_info);
-
-		if( count( $response_user_info->records ) > 0 ) {
-
-			$contactid          = $response_user_info->records[0]->Id;
-			$accountid          = $response_user_info->records[0]->fields->AccountId;
-			$currentContactName = $response_user_info->records[0]->fields->Name;
-
-			$query_currentaccount_contacts    = "select Id, ID__c, Name from Contact where AccountId = '" . $accountid . "'";
-			$response_currentaccount_contacts = $mySforceConnection->query( $query_currentaccount_contacts );
-
-			$query_campaigndetails    = "select Id, ID__c, Name, Description, StartDate, EndDate, Registration_Fee__c, isactive, Type from Campaign where ID='" . $_GET['cmpid'] . "'";
-			$response_campaigndetails = $mySforceConnection->query( $query_campaigndetails );
-
-			//Fetch mapping of form and campaign type from SF custom object "Program Forms"
-			$query_form_campaign_mapping    = "select Name, Form_Number__c, Individual_Request__c from Program_Forms__c";
-			$response_form_campaign_mapping = $mySforceConnection->query( $query_form_campaign_mapping );
-			$formCampaignMapping            = array();
-			foreach ( $response_form_campaign_mapping->records as $record_mapping ) {
-				$programFormRecord = (object) [
-					"formNumber"          => $record_mapping->fields->Form_Number__c,
-					"isIndividualRequest" => $record_mapping->fields->Individual_Request__c
-				];
-				//$formCampaignMapping[ $record_mapping->fields->Name ] = $record_mapping->fields->Form_Number__c;
-				$formCampaignMapping[ $record_mapping->fields->Name ] = $programFormRecord;
-			}
-
-			$siteURL = get_site_url();
-
-			if ( count( $response_campaigndetails->records ) > 0 ) {
-
-				$campaigndetails = $response_campaigndetails->records[0];
-
-				$content = '';
-
-				$content .= '<h2>' . $campaigndetails->fields->Name . '</h2>';
-				$content .= '<p>' . $campaigndetails->fields->Description . '</p>';
-
-				$content .= '
-					<table>
-						<tr>
-							<th>Start Date</th>
-							<th>End Date</th>
-							<th>Campaign Type</th>
-							<th>Registration Fee</th>
-						</tr>';
-
-				$content .=
-					'<tr>
-						<td>' . $campaigndetails->fields->StartDate . '</td>
-						<td>' . $campaigndetails->fields->EndDate . '</td>
-						<td>' . $campaigndetails->fields->Type . '</td>
-						<td>' . $campaigndetails->fields->Registration_Fee__c . '</td>
+			$content .= '
+				<table>
+					<tr>
+						<th>Start Date</th>
+						<th>End Date</th>
+						<th>Campaign Type</th>
+						<th>Registration Fee</th>
 					</tr>';
 
-				$content .= '</table>';
+			$content .=
+				'<tr>
+					<td>' . $campaigndetails->fields->StartDate . '</td>
+					<td>' . $campaigndetails->fields->EndDate . '</td>
+					<td>' . $campaigndetails->fields->Type . '</td>
+					<td>' . $campaigndetails->fields->Registration_Fee__c . '</td>
+				</tr>';
 
-				if ( $formCampaignMapping[ $campaigndetails->fields->Type ] ) {
+			$content .= '</table>';
 
-					if ( $formCampaignMapping[ $campaigndetails->fields->Type ]->isIndividualRequest == 'true' ) {
+			if ( $formCampaignMapping[ $campaigndetails->fields->Type ] ) {
 
-						//show modal
-						$content .= '<p><a class="button" href="#ex1" rel="modal:open">Sign Up</a></p>';
+				if ( $formCampaignMapping[ $campaigndetails->fields->Type ]->isIndividualRequest == 'true' ) {
 
-						$content .= '
-						<div id="ex1" class="modal">
-							<h4>Select Member</h4>
-							<ul>';
+					//show modal
+					$content .= '<p><a class="button" href="#ex1" rel="modal:open">Sign Up</a></p>';
 
-						foreach ($response_currentaccount_contacts->records as $record_contact) {
+					$content .= '
+					<div id="ex1" class="modal">
+						<h4>Select Member</h4>
+						<ul>';
 
-							$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->fields->ID__c . '&cmpid=' . $campaigndetails->fields->ID__c . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
-						}
+					foreach ($response_currentaccount_contacts->records as $record_contact) {
 
-						$content .= '</ul>';
-
-					} else {
-
-						$content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campaigndetails->fields->ID__c . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
-
+						$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->fields->ID__c . '&cmpid=' . $campaigndetails->fields->ID__c . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
 					}
+
+					$content .= '</ul>';
+
+				} else {
+
+					$content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campaigndetails->fields->ID__c . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
 
 				}
 
-				echo $content;
-
 			}
 
+			echo $content;
+
+		} else {
+			echo '<p>Campaign not found.</p>';
 		}
 
 	} else {
@@ -312,11 +241,225 @@ add_shortcode( 'focus_volunteers', 'render_focus_volunteer_landing_page' );
 
 function render_focus_volunteer_landing_page() {
 
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
+
 	$siteURL = get_site_url();
+
+	if ( ( isset($_GET['formid']) && $_GET['formid'] ) && shortcode_exists('formassembly') ) { //display form
+
+		$formId = $_GET['formid'];
+		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
+
+	} else { //display list of volunteer jobs
+			
+		$query_my_jobs = "select Id, Name, GW_Volunteers__Contact__r.Name, GW_Volunteers__Volunteer_Job__c, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Start_Date__c, GW_Volunteers__Hours_Worked__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name from GW_Volunteers__Volunteer_Hours__c where GW_Volunteers__Contact__c='".$contactid."'";			
+
+
+		$query_jobs = "select GW_Volunteers__Volunteer_Job__r.Id, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Description__c, GW_Volunteers__Start_Date_Time__c , GW_Volunteers__Duration__c from GW_Volunteers__Volunteer_Shift__c where GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Display_on_Website__c = true";
+						
+		$response_myjobs = $mySforceConnection->query( $query_my_jobs ); 
+		$response_jobs = $mySforceConnection->query( $query_jobs );
+		?>
+
+		<h2>My Jobs</h2>
+
+		<?php
+		if( count( $response_myjobs->records ) > 0 ) { ?>
+			<table>
+				<thead>
+					<th></th>
+					<th>Campaign Name</th>
+					<th>Job Title</th>
+					<th>Start Date</th>
+					<th>Number of Hours</th>
+				</thead>
+				<tbody>
+					<?php foreach ( $response_myjobs->records as $record_myjob ) { ?>
+						<tr>
+							<td><span class="dashicons dashicons-calendar-alt"></td>
+							<td>
+								
+								<?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name ;?>
+							</td>
+							<td>
+								<?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->Name ;?>				
+							</td>
+							<td><?php echo $record_myjob->fields->GW_Volunteers__Start_Date__c;?></td>
+							<td><?php echo $record_myjob->fields->GW_Volunteers__Hours_Worked__c;?></td>								
+						</tr>
+					<?php
+						} ?>
+				</tbody>
+			</table>
+							
+		<?php 
+		} else {
+			echo '<p>No jobs found</p>';
+		} ?>
+
+		<h2>Featured Jobs</h2>
+
+		<?php
+		if( count( $response_jobs->records ) > 0 ) { ?>
+			<table>
+				<thead>
+					<th></th>
+					<th>Campaign Name</th>
+					<th>Job Title</th>
+					<th>Start Date</th>
+					<th>Duration</th>
+					<th>Sign Up</th>
+				</thead>
+				<tbody>
+					<?php foreach ( $response_jobs->records as $record_job ) { ?>
+						<tr>
+							<td><span class="dashicons dashicons-calendar-alt"></td>
+							<td>
+								
+								<?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name;?>
+							</td>
+							<td>
+								<?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->Name;?>				
+							</td>
+							<td><?php echo $record_myjob->fields->GW_Volunteers__Start_Date__c;?></td>
+							<td><?php echo $record_job->fields->GW_Volunteers__Duration__c;?></td>
+							<td>
+								<?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->Id; ?>
+								<a class="button" href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $record_job->fields->GW_Volunteers__Volunteer_Job__r->Id . '&cntid=' . $contactid . '&formid=4719240'; ?>">Sign Up</a>
+							</td>
+						</tr>
+					<?php
+						} ?>
+				</tbody>
+			</table>
+							
+		<?php 
+		} else {
+			echo '<p>No jobs found</p>';
+		} 
+	} 
+}
+
+// Add Volunteer Jobs [focus_volunteers]
+add_shortcode( 'focus_donations', 'render_focus_donation_landing_page' );
+
+function render_focus_donation_landing_page() {
+
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
+
+	$query_opportunity_recordtype = "select Id from RecordType where Name ='Donation' ";
+	$response_opportunity_recordtype = $mySforceConnection->query( $query_opportunity_recordtype );
+
+	if( count( $response_opportunity_recordtype->records ) > 0 ) {
+
+		$recordTypeId = $response_opportunity_recordtype->records[0]->Id;
+
+		$query_opportunites = "select Id, Name, Amount, Campaign.Name, npsp__Primary_Contact__r.Name, CloseDate from Opportunity where RecordTypeId = '".$recordTypeId."' 
+		and AccountId = '".$accountid."'";
+
+		$response_opportunities = $mySforceConnection->query( $query_opportunites ); 
+
+		if( count( $response_opportunities->records ) > 0 ) { ?>
+
+			<table>
+				<thead>
+					<tr>
+						<th>Contact Name</th>
+						<th>Date</th>
+						<th>Campaign</th>
+						<th>Amount</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php
+					foreach ( $response_opportunities->records as $record_opportunity ) { ?>
+						<tr>
+							<td> <?php echo $record_opportunity->fields->npsp__Primary_Contact__r->fields->Name; ?> </td>
+							<td> <?php echo $record_opportunity->fields->CloseDate; ?> </td>
+							<td> <?php echo ( $record_opportunity->fields->Campaign->fields->Name ) ? $record_opportunity->fields->Campaign->fields->Name : 'General' ; ?> </td>
+							<td> <?php echo $record_opportunity->fields->Amount; ?> </td>
+						</tr>
+					<?php
+					} ?>						
+				</tbody>
+			</table>
+		<?php
+		} else {
+			echo '<p>No donations found</p>';
+		}				
+	}
+}
+
+
+// Shortcode to show total amount of donations current year or last year [focus_totaldonation]
+add_shortcode( 'focus_totaldonation', 'render_focus_total_donation_amount' );
+
+function render_focus_total_donation_amount( $atts ) {
+
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
+
+	$query_opportunity_recordtype = "select Id from RecordType where Name ='Donation' ";
+	$response_opportunity_recordtype = $mySforceConnection->query( $query_opportunity_recordtype );
+
+	if( count( $response_opportunity_recordtype->records ) > 0 ) {
+
+		$recordTypeId = $response_opportunity_recordtype->records[0]->Id;
+
+		$attrs = shortcode_atts( array(
+			'year' => 'current'
+		), $atts );
+
+		if( $attrs['year'] == 'current' ) {
+			$query_totaldonation = "select SUM(Amount) from Opportunity where RecordTypeId = '".$recordTypeId."' and AccountId = '".$accountid."' AND Amount != null AND CreatedDate = THIS_YEAR";
+		} elseif( $attrs['year'] == 'last' ) {
+			$query_totaldonation = "select SUM(Amount) from Opportunity where RecordTypeId = '".$recordTypeId."' and AccountId = '".$accountid."' AND Amount != null AND CreatedDate = LAST_YEAR";
+		}
+		$response_totaldonation = $mySforceConnection->query( $query_totaldonation );
+		echo '<p>';
+		if( $attrs['year'] == 'current' ) {
+			echo 'Total Donation This Year : ';
+		} elseif( $attrs['year'] == 'last' ) {
+			echo 'Total Donation Last Year : ';
+		}
+		if( count( $response_totaldonation->records ) > 0 ) {
+			$totaldonationrecord = $response_totaldonation->records[0];				
+			if( $totaldonationrecord->fields->expr0 != '' && $totaldonationrecord->fields->expr0 != null ) {
+				echo '$'.$totaldonationrecord->fields->expr0;	
+			} else {
+				echo '$0';
+			}				
+		} else {
+			echo '$0';
+		}
+		echo '</p>';
+	} else {
+		echo '<p>Donation record type not found</p>';
+	}
+}
+
+function connectWPtoSFandGetUserInfo() {
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
 		return;
 	}
+
+	if( !is_user_logged_in() ) {
+		$login_url = wp_login_url( get_permalink() );	
+		wp_redirect( $login_url );
+		exit;
+	}	
 
 	$pluginsUrl = plugin_dir_path( __FILE__ );
 
@@ -345,59 +488,81 @@ function render_focus_volunteer_landing_page() {
 
 	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
 
-	$mySforceConnection = new SforcePartnerClient();
-	$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
-	$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
+	$sf_connect = false;
+	try {
+		$mySforceConnection = new SforcePartnerClient();
+		$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
+		$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
+		$sf_connect = true;
+	} catch (Exception $e) {
+	    $sf_connect = false;
+	}
+
+	if( !$sf_connect ) {
+		echo '<p>Error while connecting to Salesforce</p>';
+		exit;
+	}
 
 	$query_user_info = "select id, Name, accountid from contact where Contact.email = '".$userEmail."'";
 	$response_user_info = $mySforceConnection->query($query_user_info);
-
-	if( count( $response_user_info->records ) > 0 ) {
-		$contactid          = $response_user_info->records[0]->Id;
-		$accountid          = $response_user_info->records[0]->fields->AccountId;
-		$currentContactName = $response_user_info->records[0]->fields->Name;
-
-		if ( isset($_GET['jobid']) && $_GET['jobid'] ) { //detail page
-
-			$query_opportunity = "select Id, Name, Amount, CloseDate from Opportunity where Id ='".$_GET['jobid']."'";
-			$response_opportunity = $mySforceConnection->query( $query_opportunity );
-			
-			if( count( $response_opportunity->records ) > 0 ) { 
-				$opportunity_record = $response_opportunity->records[0];
-				?>
-				<p><b>Name : </b> <?php echo $opportunity_record->fields->Name; ?></p>
-				<p><b>Amount : </b> <?php echo $opportunity_record->fields->Amount; ?></p>
-				<p><b>Close Date : </b> <?php $opportunity_record->fields->CloseDate; ?></p>
-			<?php
-			} else { ?>
-				<p>No Job Found</p>
-			<?php
-			}
-		} else { //display list of volunteer jobs
-
-			$query_opportunity_recordtype = "select Id from RecordType where Name ='Membership'";
-			$response_opportunity_recordtype = $mySforceConnection->query( $query_opportunity_recordtype );
-
-			if( count( $response_opportunity_recordtype->records ) > 0 ) {
-
-				$recordTypeId = $response_opportunity_recordtype->records[0]->Id;
-
-				$query_opportunites = "select Id, Name from Opportunity where RecordTypeId = '".$recordTypeId."'";
-				$response_opportunities = $mySforceConnection->query( $query_opportunites );
-				if( count( $response_opportunities->records ) > 0 ) {
-					echo '<ul>';
-					foreach ( $response_opportunities->records as $record_opportunity ) {
-						echo '<li><a href="'.$siteURL.'/volunteer-jobs/?jobid='.$record_opportunity->Id.'">'.$record_opportunity->fields->Name.'</a></li>';
-					}
-					echo '</ul>';
-				}				
-			}
-			
-		}
-
+	//if respective contact found at SF then only show programs
+	$contactid = '';
+	$accountid = '';
+	if ( count( $response_user_info->records ) > 0 ) {
+		$contactid = $response_user_info->records[0]->Id;
+		$accountid = $response_user_info->records[0]->fields->AccountId;
 	} else {
 		echo '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
+		exit;
 	}
+	return (object) [
+		"response_user_info"  => $response_user_info,
+		"SforceConnectionToken" => $mySforceConnection,
+		"currentContactId" => $contactid,
+		"currentAccountId" => $accountid
+	];
+}
 
-	 
+// Shortcode to display total number of volunteer working hours for current year or last year [focus_totaldonation]
+add_shortcode( 'focus_totalvolunteerhours', 'render_focus_total_volunteer_hours' );
+
+function render_focus_total_volunteer_hours( $atts ) {
+
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
+
+	$attrs = shortcode_atts( array(
+		'year' => 'current'
+	), $atts );
+
+	if( $attrs['year'] == 'current' ) {
+
+		$query_totalvolunteerhours = "select SUM(GW_Volunteers__Hours_Worked__c) from GW_Volunteers__Volunteer_Hours__c where GW_Volunteers__Contact__c='".$contactid."' AND GW_Volunteers__Hours_Worked__c != null AND CreatedDate = THIS_YEAR";
+
+	} elseif( $attrs['year'] == 'last' ) {
+
+		$query_totalvolunteerhours = "select SUM(GW_Volunteers__Hours_Worked__c) from GW_Volunteers__Volunteer_Hours__c where GW_Volunteers__Contact__c='".$contactid."' AND GW_Volunteers__Hours_Worked__c != null AND CreatedDate = LAST_YEAR";
+
+	}
+	$response_totalvolunteerhours = $mySforceConnection->query( $query_totalvolunteerhours );
+	echo '<p>';
+	if( $attrs['year'] == 'current' ) {
+		echo 'Total Volunteer Hours This Year : ';
+	} elseif( $attrs['year'] == 'last' ) {
+		echo 'Total Volunteer Hours Last Year : ';
+	}
+	if( count( $response_totalvolunteerhours->records ) > 0 ) {
+		$totalvolunteerhoursrecord = $response_totalvolunteerhours->records[0];				
+		if( $totalvolunteerhoursrecord->fields->expr0 != '' && $totalvolunteerhoursrecord->fields->expr0 != null ) {
+			echo $totalvolunteerhoursrecord->fields->expr0;	
+		} else {
+			echo '0';
+		}				
+	} else {
+		echo '0';
+	}
+	echo '</p>';
 }
