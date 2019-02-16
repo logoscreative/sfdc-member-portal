@@ -13,12 +13,14 @@ add_action( 'wp_enqueue_scripts', 'load_dashicons_front_end' );
 
 function load_dashicons_front_end() {
 	wp_enqueue_style( 'dashicons' );
+	wp_enqueue_style( 'dashCss', plugins_url('/dashCss.css', __FILE__) );
+	wp_enqueue_style( 'fontFamily', 'https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700' );	
 }
 
 // Add Programs shortcode [focus_programs]
 add_shortcode( 'focus_programs', 'wp_focus_program' );
 
-function wp_focus_program() {
+function wp_focus_program( $atts ) {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -32,12 +34,20 @@ function wp_focus_program() {
 	$accountid = $connectionData->currentAccountId;
 
 	$siteURL = get_site_url();
+	
+	$featuredLimitClause = '';
+	if( $atts && $atts['featuredlimit'] ) {
+		$featuredLimitClause = ' LIMIT '.$atts['featuredlimit'];
+	}
+	
+	$upcomingLimitClause = '';
+	if( $atts && $atts['upcominglimit'] ) {
+		$upcomingLimitClause = ' LIMIT '.$atts['upcominglimit'];
+	}
+	
+ 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
 
-	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY";
-	//$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
-
-	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId from Campaign where isActive=true and Featured__c=true";
-	//$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
+	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
 
 	$querySuccess = true;
 	$content = '';
@@ -50,81 +60,77 @@ function wp_focus_program() {
 		$querySuccess = false;
 	}
 
-	if( $querySuccess ) {		
-
-		$content .=	'<h2>My Upcoming Programs</h2>';
-		if( count( $response_programs_signedup->records ) == 0 ) {
-			$content .=	'<p>No programs found</p>';
-		} else {
-			$content .=	'<table>
-					<tr>
-						<th></th>
-						<th>Name</th>
-						<th>Program</th>
-						<th>Date</th>
-					</tr>';
-
-				foreach ($response_programs_signedup->records as $record_signedup) {
-					$record_signedup = new SObject( $record_signedup );
-					$content .=
-						'<tr>
-							<td><span class="dashicons dashicons-calendar-alt"></span></td>
-							<td>'.$record_signedup->fields->Contact->fields->Name.'</td>
-							<td>'.$record_signedup->fields->Campaign->fields->Name.'</td>
-							<td>'.$record_signedup->fields->Campaign->fields->StartDate.'</td>
-						</tr>';
-				}
-
-			$content .= '</table>';
-		}
-
-		$content .=	'<h2>Featured Programs</h2>';
-
-		if( count( $response_programs_scheduled->records ) == 0 ) {
-
-			$content .=	'<p>No programs found</p>';
-
-		} else {
-
-			$content .=	'<table>
-				<tr>
-					<th></th>
-					<th>Program</th>
-					<th>Date</th>
-					<th>Cost</th>
-					<th>Sign Up</th>
-				</tr>';
-
-			foreach ($response_programs_scheduled->records as $record_scheduled) {
-				$record_scheduled = new SObject( $record_scheduled );
-				$addtolist = true;
-				foreach ($response_programs_signedup->records as $record_signedup) {
-					if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
-						$addtolist = false;
-					}
-				}
-
-				if ($addtolist) {
-					$content .=
-						'<tr>
-							<td><span class="dashicons dashicons-calendar-alt"></span></td>
-							<td>'.$record_scheduled->fields->Name.'</td>
-							<td>'.$record_scheduled->fields->StartDate.'</td>
-							<td>'.$record_scheduled->fields->Registration_Fee__c.'</td>
-							<td><a href="'.$siteURL.'/campaign?cmpid='.$record_scheduled->Id.'">More Details</a></td>
-					</tr>';
-				}
-			}
-
-			$content .= '</table>';
-		}
-	}
-	echo $content;
+	if( $querySuccess ) { 	?>
+		<div class="cardStyle">
+			<div class="cardTitle">
+				<div class="cardTitleTxt">Featured Events</div>
+			</div>
+			<div class="cardBody">
+				<?php 
+				if( count( $response_programs_scheduled->records ) == 0 ) { ?>
+					<p>No programs found</p>
+				<?php } else{ ?>
+					<div class="eventList">
+				  <?php foreach ($response_programs_scheduled->records as $record_scheduled) {
+						$record_scheduled = new SObject( $record_scheduled );
+						$addtolist = true;
+						foreach ($response_programs_signedup->records as $record_signedup) {
+							$record_signedup = new SObject( $record_signedup );
+							if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
+								$addtolist = false;
+							}
+						}
+						if ($addtolist) { ?>
+						<div class="eventItem">
+							<div class="eventName"><?php echo $record_scheduled->fields->Name; ?></div>
+							<div class="eventDate">
+								<?php 
+									$date = date_create( $record_scheduled->fields->StartDate );
+									echo date_format($date,"F d, Y");
+								?>
+							</div>
+							<a href="<?php echo $siteURL.'/campaign?cmpid='.$record_scheduled->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
+						</div>
+						<?php } ?>
+					<?php } ?>
+					</div>
+				<?php }?>
+			</div>
+		</div>
+		<div class="cardStyle">
+			<div class="cardTitle hasLink">
+				<div class="cardTitleTxt">Upcoming Events</div>
+				<?php if( $atts && $atts['alleventslink'] ) { ?>
+					<a href="<?php echo $siteURL.'/member-programs';?>" class="cardTitleLink">All Events</a>
+				<?php } ?>
+			</div>
+			<div class="cardBody">
+				<?php if( count( $response_programs_signedup->records ) == 0 ) { ?>
+					<p>No programs found</p>
+				<?php } else { ?>
+					<div class="eventList">
+				<?php foreach ($response_programs_signedup->records as $record_signedup) {
+					$record_signedup = new SObject( $record_signedup ); ?>
+						<div class="eventItem">
+							<div class="eventName"><?php $record_signedup->fields->Campaign->fields->Name; ?></div>
+							<div class="eventDate">
+								<?php 
+								$date = date_create( $record_signedup->fields->Campaign->fields->StartDate );
+								echo date_format($date,"F d, Y");
+								?>
+							</div>
+							<a href="javascript:void(0);" class="btnStyle btnBlue viewBtn">View</a>
+						</div>
+				<?php }	?>
+					</div>
+				<?php }	?>	
+			</div>
+		</div>
+	<?php } 
 }
 
 // Enqueue modal scripts and styles
 add_action( 'wp_enqueue_scripts', 'load_jquery_modal' );
-
 
 function load_jquery_modal() {
 	if ( is_page('campaign') ) {
@@ -277,7 +283,7 @@ function render_focus_campaign_landing_page() {
 // Add Volunteer Jobs [focus_volunteers]
 add_shortcode( 'focus_volunteers', 'render_focus_volunteer_landing_page' );
 
-function render_focus_volunteer_landing_page() {
+function render_focus_volunteer_landing_page( $atts ) {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -292,22 +298,30 @@ function render_focus_volunteer_landing_page() {
 
 	$siteURL = get_site_url();
 
+	$attrs = shortcode_atts( array(
+		'showmyjobs' => 'true',
+		'alloppslink' => 'false'
+	), $atts );
+
 	if ( ( isset($_GET['formid']) && $_GET['formid'] ) && shortcode_exists('formassembly') ) { //display form
 
 		$formId = $_GET['formid'];
 		echo do_shortcode( '[formassembly formid=' . $formId . ']' );
 
 	} else { //display list of volunteer jobs
-			
-		$query_my_jobs = "select Id, Name, GW_Volunteers__Contact__r.Name, GW_Volunteers__Volunteer_Job__c, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Start_Date__c, GW_Volunteers__Hours_Worked__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name from GW_Volunteers__Volunteer_Hours__c where GW_Volunteers__Contact__c='".$contactid."'";			
-
+		
+		if( $attrs[ 'showmyjobs' ] == 'true' ) {
+			$query_my_jobs = "select Id, Name, GW_Volunteers__Contact__r.Name, GW_Volunteers__Volunteer_Job__c, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Start_Date__c, GW_Volunteers__Hours_Worked__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name from GW_Volunteers__Volunteer_Hours__c where GW_Volunteers__Contact__c='".$contactid."'";			
+		}
 
 		$query_jobs = "select GW_Volunteers__Volunteer_Job__r.Id, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Description__c, GW_Volunteers__Start_Date_Time__c , GW_Volunteers__Duration__c from GW_Volunteers__Volunteer_Shift__c where GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Display_on_Website__c = true AND GW_Volunteers__Start_Date_Time__c > TODAY and GW_Volunteers__Start_Date_Time__c = NEXT_N_DAYS:90";
 
 		$querySuccess = true;
 
-		try {			
-			$response_myjobs = $mySforceConnection->query( $query_my_jobs ); 
+		try {	
+			if( $attrs[ 'showmyjobs' ] == 'true'  ) {	
+				$response_myjobs = $mySforceConnection->query( $query_my_jobs );
+			} 
 			$response_jobs = $mySforceConnection->query( $query_jobs );
 		} catch( Exception $e ) {
 			echo 'Something went wrong :'.$e->getMessage();
@@ -315,87 +329,71 @@ function render_focus_volunteer_landing_page() {
 		}
 
 		if( $querySuccess ) {
-		?>
-
-			<h2>My Jobs</h2>
-
-			<?php
-			if( count( $response_myjobs->records ) > 0 ) { ?>
-				<table>
-					<thead>
-						<th></th>
-						<th>Campaign Name</th>
-						<th>Job Title</th>
-						<th>Start Date</th>
-						<th>Number of Hours</th>
-					</thead>
-					<tbody>
-						<?php foreach ( $response_myjobs->records as $record_myjob ) { 
-								$record_myjob = new SObject( $record_myjob );
-							?>
-							<tr>
-								<td><span class="dashicons dashicons-calendar-alt"></td>
-								<td>
-									
-									<?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name ;?>
-								</td>
-								<td>
-									<?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->Name ;?>				
-								</td>
-								<td><?php echo $record_myjob->fields->GW_Volunteers__Start_Date__c;?></td>
-								<td><?php echo $record_myjob->fields->GW_Volunteers__Hours_Worked__c;?></td>								
-							</tr>
+			if( $attrs[ 'showmyjobs' ] == 'true' ) {	//show my jobs only when it is set in shortcode
+			?>
+				<div class="cardStyle">
+					<div class="cardTitle">
+						<div class="cardTitleTxt">My Jobs</div>
+					</div>
+					<div class="cardBody">
 						<?php
-							} ?>
-					</tbody>
-				</table>
-								
-			<?php 
-			} else {
-				echo '<p>No jobs found</p>';
-			} ?>
-
-			<h2>Featured Jobs</h2>
-
-			<?php
-			if( count( $response_jobs->records ) > 0 ) { ?>
-				<table>
-					<thead>
-						<th></th>
-						<th>Campaign Name</th>
-						<th>Job Title</th>
-						<th>Start Date</th>
-						<th>Duration</th>
-						<th>Sign Up</th>
-					</thead>
-					<tbody>
-						<?php foreach ( $response_jobs->records as $record_job ) { 
+						if( count( $response_myjobs->records ) > 0 ) { ?>
+							<div class="eventList">
+								<?php foreach ( $response_myjobs->records as $record_myjob ) { 
+										$record_myjob = new SObject( $record_myjob );
+								?>
+								<div class="eventItem">
+									<div class="eventName"><?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->Name ;?>	</div>
+									<div class="eventDate"><?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name ;?><span style="margin-left:7px;">
+									<?php 
+										$date = date_create( $record_myjob->fields->GW_Volunteers__Start_Date__c );
+										echo date_format($date,"F d, Y");?>
+									</span></div>
+								</div>
+								<?php
+								} ?>
+							</div>
+						<?php 
+						} else {
+							echo '<p>No opportunities found</p>';
+						} 
+						?>
+					</div>
+				</div>
+				<?php } ?>
+				<div class="cardStyle">
+					<div class="cardTitle hasLink">
+						<div class="cardTitleTxt">Volunteer Opportunities</div>
+						<?php if( $attrs['alloppslink'] == 'true' ) { ?>
+							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="cardTitleLink">All opps</a>
+						<?php } ?>
+					</div>
+					<div class="cardBody">
+						<?php
+						if( count( $response_jobs->records ) > 0 ) { ?>
+						<div class="eventList">
+							<?php foreach ( $response_jobs->records as $record_job ) { 
 								$record_job = new SObject( $record_job );
 							?>
-							<tr>
-								<td><span class="dashicons dashicons-calendar-alt"></td>
-								<td>
-									
-									<?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name;?>
-								</td>
-								<td>
-									<?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->Name;?>				
-								</td>
-								<td><?php echo $record_job->fields->GW_Volunteers__Start_Date_Time__c;?></td>
-								<td><?php echo $record_job->fields->GW_Volunteers__Duration__c;?></td>
-								<td>
-									<a class="button" href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $record_job->fields->GW_Volunteers__Volunteer_Job__r->Id . '&cntid=' . $contactid . '&formid=4719240'; ?>">Sign Up</a>
-								</td>
-							</tr>
-						<?php
+							<div class="eventItem">
+								<div class="eventName"><?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->Name;?></div>
+								<div class="eventDate"><?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name;?><span style="margin-left:7px;">
+								<?php 
+								$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
+								echo date_format($date,"F d, Y");?>
+								</span></div>
+								<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $record_job->fields->GW_Volunteers__Volunteer_Job__r->Id . '&cntid=' . $contactid . '&formid=4719240'; ?>" class="btnStyle btnBlue viewBtn">View</a>
+							</div>
+							<?php
 							} ?>
-					</tbody>
-				</table>
-								
+						</div>
+						<?php 
+						} else {
+							echo '<p>No opportunities found</p>';
+						} ?>
+					</div>
+				</div>
 			<?php 
-			} else {
-				echo '<p>No jobs found</p>';
-			} 
 		} 
 	} 
 }
@@ -579,13 +577,15 @@ function connectWPtoSFandGetUserInfo() {
 
 	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
 
+
 	$sf_connect = false;
 	try {
 		$mySforceConnection = new SforcePartnerClient();
-		$mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");
+		$connection = $mySforceConnection->createConnection($pluginsUrl . "PartnerWSDL.xml");		
 		$mySforceConnection->login($storedUsername, $storedPassword.$storedSecurityToken);
 		$sf_connect = true;
 	} catch (Exception $e) {
+		echo $e->getMessage();
 	    $sf_connect = false;
 	}
 
@@ -594,7 +594,7 @@ function connectWPtoSFandGetUserInfo() {
 		exit;
 	}
 
-	$query_user_info = "SELECT Id, Name, AccountId FROM Contact WHERE Email = '".$userEmail."'";
+	$query_user_info = "SELECT Id, Name, AccountId, Account.Total_Due__c, Account.Name, Account.Primary_Email__c, Account.Phone, Account.CreatedDate, Account.ShippingStreet, Account.ShippingCity, Account.ShippingState, Account.ShippingPostalCode, Account.ShippingCountry, Account.npo02__TotalOppAmount__c, Account.Level__r.Name, GW_Volunteers__Volunteer_Hours__c FROM Contact WHERE Email = '".$userEmail."'";
 	$response_user_info = $mySforceConnection->query($query_user_info);
 	//if respective contact found at SF then only show programs
 	$contactid = '';
@@ -611,7 +611,8 @@ function connectWPtoSFandGetUserInfo() {
 		"response_user_info"  => $response_user_info,
 		"SforceConnectionToken" => $mySforceConnection,
 		"currentContactId" => $contactid,
-		"currentAccountId" => $accountid
+		"currentAccountId" => $accountid,
+		"contactRecord" => $contactRec
 	];
 }
 
@@ -697,3 +698,148 @@ function render_focus_volunteer_calendar( $atts ) {
 		echo do_shortcode( '[advanced_iframe src="'.$attrs['pagelink'].'?id='.$contactid.'" width="'.$attrs['iframewidth'].'" height="'.$attrs['iframeheight'].'"]' );
 	}
 }
+
+// Display focus account information [focus_accountinfo]
+add_shortcode( 'focus_accountinfo', 'render_focus_account_information' );
+
+function render_focus_account_information() {
+
+	// Do not render shortcode in the admin area
+	if ( is_admin() ) {
+		return;
+	}
+
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
+	$contactRec = $connectionData->contactRecord; 
+
+	$shippingAddress = '';
+	if( $contactRec->fields->Account->ShippingStreet ) {
+		$shippingAddress .= $contactRec->fields->Account->ShippingStreet.' ';
+	}
+	if( $contactRec->fields->Account->ShippingCity ) {
+		$shippingAddress .= $contactRec->fields->Account->ShippingCity.' ';
+	}
+	if( $contactRec->fields->Account->ShippingState ) {
+		$shippingAddress .= $contactRec->fields->Account->ShippingState.' ';
+	}
+	if( $contactRec->fields->Account->ShippingPostalCode ) {
+		$shippingAddress .= $contactRec->fields->Account->ShippingPostalCode.' ';
+	}
+	if( $contactRec->fields->Account->ShippingCountry ) {
+		$shippingAddress .= $contactRec->fields->Account->ShippingCountry;
+	}
+	$currentUser = wp_get_current_user();
+	?>
+	<div class="household">
+		<div class="householdPic-wrap">
+			<?php echo get_avatar( $currentUser->ID, 'auto' ); ?>
+		</div>
+		<!--<img src="https://pickaface.net/gallery/avatar/unr_test_161024_0535_9lih90.png" alt="" class="householdPic"/>-->
+		<div class="householdName">
+			<div class="householdNameTxt"><?php echo $contactRec->fields->Account->Name;?></div>
+			<div class="amtDue">$<?php echo $contactRec->fields->Account->Total_Due__c;?></div>
+		</div>
+		<ul class="householdNameInfo">
+			<?php if( $shippingAddress != '' ) {?>
+				<li>
+					<img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" class="infoIcon"/>
+					<p><?php echo $shippingAddress;?></p>
+				</li>
+			<?php
+			} if( $contactRec->fields->Account->Phone != '' ) {?>			
+				<li>
+					<img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" class="infoIcon"/>
+					<p><?php echo $contactRec->fields->Account->Phone;?></p>
+				</li>
+			<?php } if( $contactRec->fields->Account->Primary_Email__c != '' ) { ?>
+				<li>
+					<img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" class="infoIcon"/>
+					<p><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>" class="emailLink"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></p>
+				</li>
+			<?php } if( $contactRec->fields->Account->CreatedDate != '' ) { ?>		
+				<li>
+					<img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" class="infoIcon"/>
+					<p>
+						<?php 
+						$date=date_create( $contactRec->fields->Account->CreatedDate );
+						echo 'Family Since '.date_format($date,"Y");?>
+					</p>
+				</li>
+			<?php } ?>
+		</ul>
+	</div>
+	<?php
+}
+
+// Display focus family dashboard [focus_familydashboard]
+add_shortcode( 'focus_donation_volunteer_details', 'render_donation_volunteer_details' );
+
+function render_donation_volunteer_details() {
+	// Do not render shortcode in the admin area
+	if ( is_admin() ) {
+		return;
+	}
+
+	$connectionData = connectWPtoSFandGetUserInfo();
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	$accountid = $connectionData->currentAccountId;
+	$contactRec = $connectionData->contactRecord; 
+	$siteURL = get_site_url();
+	?>
+	<div class="cardStyle">
+		<div class="cardTitle">
+			<div class="cardTitleTxt">Thank you for being a Focus Family</div>
+		</div>
+		<div class="cardBody">
+			<div class="donations">
+				<div class="donationAmt">$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?> <a href="<?php echo $siteURL.'/donations';?>" class="viewLinkSm">View All</a></div>
+				
+				<div class="donationYr">Donations <?php echo date("Y"); ?><br/>
+					<?php if( $contactRec->fields->Account->Level__r ) { ?>
+						<b><?php echo $contactRec->fields->Account->Level__r->Name; ?> Level Donor</b>
+					<?php
+					}?>				
+				</div>	
+			</div>
+			<div class="divider"></div>
+			<div class="donations">
+				<div class="donationAmt"><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?> <a href="<?php echo $siteURL.'/volunteers';?>" class="viewLinkSm">View All</a></div>
+				<div class="donationYr">Hours Volunteered</div>	
+			</div>	
+		</div>
+	</div>		
+	<?php
+}
+
+// Display focus family dashboard [focus_familydashboard]
+add_shortcode( 'focus_familydashboard', 'render_focus_family_dashboard' );
+
+function render_focus_family_dashboard() { ?>
+    
+<div class="dashboardLayoutContainer">
+	<div class="dashboardLayout">
+		<div class="dashboardLayoutCol householdCol">
+			<?php echo do_shortcode( '[focus_accountinfo]' ); //shortcode to display account information ( left sidebar )?>	
+		</div>	
+		<div class="dashboardLayoutCol">
+			<div class="vCol">
+				<?php echo do_shortcode( '[focus_programs featuredlimit="3" upcominglimit="5" alleventslink="true"]' ); //shortcode to display events ( my and featured )?>
+			</div>
+			<div class="vCol">
+				<?php echo do_shortcode( '[focus_donation_volunteer_details]' ); //Shortcode to display donations and volunteered hours  ( Thank you for being a focus family ); //shortcode to display events ( my and featured )
+				 echo do_shortcode( '[focus_volunteers showmyjobs="false" alloppslink="true"]' ); //volunteer opportunities ?>
+			</div>	
+		</div>
+	</div>
+</div>
+
+<?php 		
+}
+
+
