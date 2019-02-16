@@ -112,14 +112,14 @@ function wp_focus_program( $atts ) {
 				<?php foreach ($response_programs_signedup->records as $record_signedup) {
 					$record_signedup = new SObject( $record_signedup ); ?>
 						<div class="eventItem">
-							<div class="eventName"><?php $record_signedup->fields->Campaign->fields->Name; ?></div>
+							<div class="eventName"><?php echo $record_signedup->fields->Campaign->fields->Name; ?></div>
 							<div class="eventDate">
 								<?php 
 								$date = date_create( $record_signedup->fields->Campaign->fields->StartDate );
 								echo date_format($date,"F d, Y");
 								?>
 							</div>
-							<a href="javascript:void(0);" class="btnStyle btnBlue viewBtn">View</a>
+							<a href="<?php echo $siteURL.'/campaign?cmpid='.$record_scheduled->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
 						</div>
 				<?php }	?>
 					</div>
@@ -176,7 +176,7 @@ function render_focus_campaign_landing_page() {
 
 		$query_currentaccount_contacts    = "select Id, Name from Contact where AccountId = '" . $accountid . "'";		
 
-		$query_campaigndetails    = "select Id, Name, Description, StartDate, EndDate, Registration_Fee__c, isActive, Type from Campaign where ID='" . $_GET['cmpid'] . "'";		
+		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type from Campaign where ID='" . $_GET['cmpid'] . "'";		
 
 		//Fetch mapping of form and campaign type from SF custom object "Program Forms"
 		$query_form_campaign_mapping    = "select Name, Form_Number__c, Individual_Request__c from Program_Forms__c";
@@ -216,6 +216,7 @@ function render_focus_campaign_landing_page() {
 				$content = '';
 
 				$content .= '<h2>' . $campaigndetails->fields->Name . '</h2>';
+				$content .= '<p>Location: ' . $campaigndetails->fields->Location__c . '</p>';
 				$content .= '<p>' . $campaigndetails->fields->Description . '</p>';
 
 				$content .= '
@@ -223,7 +224,6 @@ function render_focus_campaign_landing_page() {
 						<tr>
 							<th>Start Date</th>
 							<th>End Date</th>
-							<th>Campaign Type</th>
 							<th>Registration Fee</th>
 						</tr>';
 
@@ -231,8 +231,7 @@ function render_focus_campaign_landing_page() {
 					'<tr>
 						<td>' . $campaigndetails->fields->StartDate . '</td>
 						<td>' . $campaigndetails->fields->EndDate . '</td>
-						<td>' . $campaigndetails->fields->Type . '</td>
-						<td>' . $campaigndetails->fields->Registration_Fee__c . '</td>
+						<td>$ ' . $campaigndetails->fields->Registration_Fee__c . '</td>
 					</tr>';
 
 				$content .= '</table>';
@@ -382,7 +381,7 @@ function render_focus_volunteer_landing_page( $atts ) {
 								$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
 								echo date_format($date,"F d, Y");?>
 								</span></div>
-								<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $record_job->fields->GW_Volunteers__Volunteer_Job__r->Id . '&cntid=' . $contactid . '&formid=4719240'; ?>" class="btnStyle btnBlue viewBtn">View</a>
+								<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $record_job->fields->GW_Volunteers__Volunteer_Job__r->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="btnStyle btnBlue viewBtn">View</a>
 							</div>
 							<?php
 							} ?>
@@ -594,7 +593,7 @@ function connectWPtoSFandGetUserInfo() {
 		exit;
 	}
 
-	$query_user_info = "SELECT Id, Name, AccountId, Account.Total_Due__c, Account.Name, Account.Primary_Email__c, Account.Phone, Account.CreatedDate, Account.ShippingStreet, Account.ShippingCity, Account.ShippingState, Account.ShippingPostalCode, Account.ShippingCountry, Account.npo02__TotalOppAmount__c, Account.Level__r.Name, GW_Volunteers__Volunteer_Hours__c FROM Contact WHERE Email = '".$userEmail."'";
+	$query_user_info = "SELECT Id, Name, AccountId, Account.Total_Due__c, Account.npo02__OppAmountThisYear__c, Account.npo02__Informal_Greeting__c, Account.Name, Account.Primary_Email__c, Account.Phone, Account.CreatedDate, Account.BillingStreet, Account.BillingCity, Account.BillingState, Account.BillingPostalCode, Account.BillingCountry, Account.npo02__TotalOppAmount__c, Account.Level__r.Name, GW_Volunteers__Volunteer_Hours__c FROM Contact WHERE Email = '".$userEmail."'";
 	$response_user_info = $mySforceConnection->query($query_user_info);
 	//if respective contact found at SF then only show programs
 	$contactid = '';
@@ -704,7 +703,7 @@ add_shortcode( 'focus_accountinfo', 'render_focus_account_information' );
 
 function render_focus_account_information() {
 
-	// Do not render shortcode in the admin area
+	// Do not render sortcode in the admin area
 	if ( is_admin() ) {
 		return;
 	}
@@ -716,38 +715,35 @@ function render_focus_account_information() {
 	$accountid = $connectionData->currentAccountId;
 	$contactRec = $connectionData->contactRecord; 
 
-	$shippingAddress = '';
-	if( $contactRec->fields->Account->ShippingStreet ) {
-		$shippingAddress .= $contactRec->fields->Account->ShippingStreet.' ';
+	$BillingAddress = '';
+	if( $contactRec->fields->Account->BillingStreet ) {
+		$BillingAddress .= $contactRec->fields->Account->BillingStreet.' <br/>';
 	}
-	if( $contactRec->fields->Account->ShippingCity ) {
-		$shippingAddress .= $contactRec->fields->Account->ShippingCity.' ';
+	if( $contactRec->fields->Account->BillingCity ) {
+		$BillingAddress .= $contactRec->fields->Account->BillingCity.', ';
 	}
-	if( $contactRec->fields->Account->ShippingState ) {
-		$shippingAddress .= $contactRec->fields->Account->ShippingState.' ';
+	if( $contactRec->fields->Account->BillingState ) {
+		$BillingAddress .= $contactRec->fields->Account->BillingState.' ';
 	}
-	if( $contactRec->fields->Account->ShippingPostalCode ) {
-		$shippingAddress .= $contactRec->fields->Account->ShippingPostalCode.' ';
-	}
-	if( $contactRec->fields->Account->ShippingCountry ) {
-		$shippingAddress .= $contactRec->fields->Account->ShippingCountry;
+	if( $contactRec->fields->Account->BillingPostalCode ) {
+		$BillingAddress .= $contactRec->fields->Account->BillingPostalCode.' ';
 	}
 	$currentUser = wp_get_current_user();
 	?>
 	<div class="household">
-		<div class="householdPic-wrap">
-			<?php echo get_avatar( $currentUser->ID, 'auto' ); ?>
-		</div>
-		<!--<img src="https://pickaface.net/gallery/avatar/unr_test_161024_0535_9lih90.png" alt="" class="householdPic"/>-->
+		<!--<div class="householdPic-wrap">
+			<?php echo get_avatar( $currentUser->ID, 227 ); ?>
+		</div>-->
+		<img src="https://d3r03scjf2irwr.cloudfront.net/content/uploads/2019/02/16142132/ff.png" alt="" class="householdPic"/>
 		<div class="householdName">
-			<div class="householdNameTxt"><?php echo $contactRec->fields->Account->Name;?></div>
-			<div class="amtDue">$<?php echo $contactRec->fields->Account->Total_Due__c;?></div>
+			<div class="householdNameTxt"><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></div>
+			
 		</div>
 		<ul class="householdNameInfo">
-			<?php if( $shippingAddress != '' ) {?>
+			<?php if( $BillingAddress != '' ) {?>
 				<li>
 					<img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" class="infoIcon"/>
-					<p><?php echo $shippingAddress;?></p>
+					<p><?php echo $BillingAddress;?></p>
 				</li>
 			<?php
 			} if( $contactRec->fields->Account->Phone != '' ) {?>			
@@ -768,6 +764,9 @@ function render_focus_account_information() {
 						$date=date_create( $contactRec->fields->Account->CreatedDate );
 						echo 'Family Since '.date_format($date,"Y");?>
 					</p>
+				</li>
+				<li>
+					<div class="amtDue">Total Due: $<?php echo $contactRec->fields->Account->Total_Due__c;?></div>
 				</li>
 			<?php } ?>
 		</ul>
@@ -794,7 +793,7 @@ function render_donation_volunteer_details() {
 	?>
 	<div class="cardStyle">
 		<div class="cardTitle">
-			<div class="cardTitleTxt">Thank you for being a Focus Family</div>
+			<div class="cardTitleTxt">Thank you!</div>
 		</div>
 		<div class="cardBody">
 			<div class="donations">
