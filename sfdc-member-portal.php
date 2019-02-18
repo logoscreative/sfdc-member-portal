@@ -76,7 +76,8 @@ function wp_focus_program( $atts ) {
 						$addtolist = true;
 						foreach ($response_programs_signedup->records as $record_signedup) {
 							$record_signedup = new SObject( $record_signedup );
-							if ($record_signedup->fields->Campaign->fields->Name == $record_scheduled->fields->Name) {
+							$campRec = new SObject( $record_signedup->fields->Campaign );
+							if ( $campRec->fields && $campRec->fields->Name == $record_scheduled->fields->Name) {
 								$addtolist = false;
 							}
 						}
@@ -110,13 +111,16 @@ function wp_focus_program( $atts ) {
 				<?php } else { ?>
 					<div class="eventList">
 				<?php foreach ($response_programs_signedup->records as $record_signedup) {
-					$record_signedup = new SObject( $record_signedup ); ?>
+					$record_signedup = new SObject( $record_signedup ); 
+					$campRec = new SObject( $record_signedup->fields->Campaign ); ?>
 						<div class="eventItem">
-							<div class="eventName"><?php echo $record_signedup->fields->Campaign->fields->Name; ?></div>
+							<div class="eventName"><?php if( $campRec->fields ) { echo $campRec->fields->Name; } ?></div>
 							<div class="eventDate">
 								<?php 
-								$date = date_create( $record_signedup->fields->Campaign->fields->StartDate );
-								echo date_format($date,"F d, Y");
+								if( $campRec->fields ) {
+									$date = date_create( $campRec->fields->StartDate );
+									echo date_format($date,"F d, Y");
+								}
 								?>
 							</div>
 							<a href="<?php echo $siteURL.'/campaign?cmpid='.$record_scheduled->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
@@ -340,10 +344,14 @@ function render_focus_volunteer_landing_page( $atts ) {
 							<div class="eventList">
 								<?php foreach ( $response_myjobs->records as $record_myjob ) { 
 										$record_myjob = new SObject( $record_myjob );
+										$jobRec = new SObject( $record_myjob->fields->GW_Volunteers__Volunteer_Job__r );
+										if( $jobRec->fields ) {
+											$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );	
+										}										
 								?>
 								<div class="eventItem">
-									<div class="eventName"><?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->Name ;?>	</div>
-									<div class="eventDate"><?php echo $record_myjob->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name ;?><span style="margin-left:7px;">
+									<div class="eventName"><?php if( $jobRec->fields ) { echo $jobRec->fields->Name ; }?>	</div>
+									<div class="eventDate"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name ; }?><span style="margin-left:7px;">
 									<?php 
 										$date = date_create( $record_myjob->fields->GW_Volunteers__Start_Date__c );
 										echo date_format($date,"F d, Y");?>
@@ -373,15 +381,19 @@ function render_focus_volunteer_landing_page( $atts ) {
 						<div class="eventList">
 							<?php foreach ( $response_jobs->records as $record_job ) { 
 								$record_job = new SObject( $record_job );
+								$jobRec = new SObject( $record_job->fields->GW_Volunteers__Volunteer_Job__r );
+								if( $jobRec->fields ) {
+									$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );
+								}
 							?>
 							<div class="eventItem">
-								<div class="eventName"><?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->Name;?></div>
-								<div class="eventDate"><?php echo $record_job->fields->GW_Volunteers__Volunteer_Job__r->fields->GW_Volunteers__Campaign__r->fields->Name;?><span style="margin-left:7px;">
+								<div class="eventName"><?php if( $jobRec->fields ) { echo $jobRec->fields->Name; }?></div>
+								<div class="eventDate"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name;} ?><span style="margin-left:7px;">
 								<?php 
 								$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
 								echo date_format($date,"F d, Y");?>
 								</span></div>
-								<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $record_job->fields->GW_Volunteers__Volunteer_Job__r->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="btnStyle btnBlue viewBtn">View</a>
+								<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="btnStyle btnBlue viewBtn">View</a>
 							</div>
 							<?php
 							} ?>
@@ -453,11 +465,13 @@ function render_focus_donation_landing_page() {
 							<?php
 							foreach ( $response_opportunities->records as $record_opportunity ) { 
 								$record_opportunity = new SObject( $record_opportunity );
+								$tempContactRec = new SObject( $record_opportunity->fields->npsp__Primary_Contact__r );
 								?>
 								<tr>
-									<td> <?php echo $record_opportunity->fields->npsp__Primary_Contact__r->fields->Name; ?> </td>
+									<td> <?php if(  $tempContactRec->fields ) { echo $tempContactRec->fields->Name; } ?> </td>
 									<td> <?php echo $record_opportunity->fields->CloseDate; ?> </td>
-									<td> <?php echo ( $record_opportunity->fields->Campaign->fields->Name ) ? $record_opportunity->fields->Campaign->fields->Name : 'General' ; ?> </td>
+									<td> <?php $camp = new SObject( $record_opportunity->fields->Campaign ); 
+									echo ( $camp->fields && $camp->fields->Name ) ? $camp->fields->Name : 'General' ; ?> </td>
 									<td> <?php echo $record_opportunity->fields->Amount; ?> </td>
 								</tr>
 							<?php
@@ -840,5 +854,3 @@ function render_focus_family_dashboard() { ?>
 
 <?php 		
 }
-
-
