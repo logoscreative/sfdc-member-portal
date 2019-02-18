@@ -45,7 +45,7 @@ function wp_focus_program( $atts ) {
 		$upcomingLimitClause = ' LIMIT '.$atts['upcominglimit'];
 	}
 	
- 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.name, Campaign.StartDate, Campaign.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
+ 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.Id, Campaign.name, Campaign.StartDate, Campaign.Type, Campaign.Parent.Id, Campaign.Parent.Name  from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
 
 	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
 
@@ -114,7 +114,8 @@ function wp_focus_program( $atts ) {
 					$record_signedup = new SObject( $record_signedup ); 
 					$campRec = new SObject( $record_signedup->fields->Campaign ); ?>
 						<div class="eventItem">
-							<div class="eventName"><?php if( $campRec->fields ) { echo $campRec->fields->Name; } ?></div>
+							<div class="eventName"><?php if( $campRec->fields ) { echo $campRec->fields->Name;
+								/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></div>
 							<div class="eventDate">
 								<?php 
 								if( $campRec->fields ) {
@@ -123,7 +124,7 @@ function wp_focus_program( $atts ) {
 								}
 								?>
 							</div>
-							<a href="<?php echo $siteURL.'/campaign?cmpid='.$record_scheduled->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
+							<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
 						</div>
 				<?php }	?>
 					</div>
@@ -180,7 +181,7 @@ function render_focus_campaign_landing_page() {
 
 		$query_currentaccount_contacts    = "select Id, Name from Contact where AccountId = '" . $accountid . "'";		
 
-		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type from Campaign where ID='" . $_GET['cmpid'] . "'";		
+		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c from Campaign where ID='" . $_GET['cmpid'] . "'";		
 
 		//Fetch mapping of form and campaign type from SF custom object "Program Forms"
 		$query_form_campaign_mapping    = "select Name, Form_Number__c, Individual_Request__c from Program_Forms__c";
@@ -220,7 +221,7 @@ function render_focus_campaign_landing_page() {
 				$content = '';
 
 				$content .= '<h2>' . $campaigndetails->fields->Name . '</h2>';
-				$content .= '<p>Location: ' . $campaigndetails->fields->Location__c . '</p>';
+				$content .= '<p>Location : ' . $campaigndetails->fields->Location__c . '</p>';
 				$content .= '<p>' . $campaigndetails->fields->Description . '</p>';
 
 				$content .= '
@@ -240,13 +241,34 @@ function render_focus_campaign_landing_page() {
 
 				$content .= '</table>';
 
+				
+				$todayDate = date('Y-m-d');
+				$todayDate = date('Y-m-d', strtotime($todayDate));
+				$campRegStartDate = '';
+				$campRegEndDate = '';
+
+				if( $campaigndetails->fields->Registration_Date__c != '' && $campaigndetails->fields->Registration_Date__c != null ) {
+					$campRegStartDate = date( 'Y-m-d', strtotime( $campaigndetails->fields->Registration_Date__c ) );
+				}
+				if( $campaigndetails->fields->Registration_End_Date__c != '' && $campaigndetails->fields->Registration_End_Date__c != null ) {
+					$campRegEndDate = date( 'Y-m-d', strtotime( $campaigndetails->fields->Registration_End_Date__c ) );
+				}
+
 				if ( $formCampaignMapping[ $campaigndetails->fields->Type ] ) {
 
 					if ( $formCampaignMapping[ $campaigndetails->fields->Type ]->isIndividualRequest == 'true' ) {
-
+						
+						//check if today's date is between start and end date. If in between then only show sign up button
+						if( ( $campRegStartDate != '' && $campRegEndDate != '' && ( $todayDate > $campRegStartDate ) && ( $todayDate < $campRegEndDate ) ) || 
+							( $campRegStartDate != '' && $campRegEndDate == '' && ( $todayDate > $campRegStartDate ) ) ||
+							( $campRegStartDate == '' && $campRegEndDate != '' && ( $todayDate < $campRegEndDate )  ) ||
+							( $campRegStartDate == '' && $campRegEndDate == '' )
+						) {
+							$content .= '<p><a class="button" href="#ex1" rel="modal:open">Sign Up</a></p>';
+						} else {
+							$content .= '<p>Program is not available for registration.</p>'; 
+						}
 						//show modal
-						$content .= '<p><a class="button" href="#ex1" rel="modal:open">Sign Up</a></p>';
-
 						$content .= '
 						<div id="ex1" class="modal">
 							<h4>Select Member</h4>
@@ -262,8 +284,13 @@ function render_focus_campaign_landing_page() {
 						$content .= '</ul>';
 
 					} else {
-
-						$content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campaigndetails->Id . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
+						//check if today's date is between start and end date. If in between then only show sign up button
+						if( ( $todayDate > $campRegStartDate ) && ( $todayDate < $campRegEndDate ) ) {
+						    $content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campaigndetails->Id . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
+						} else {
+							$content .= '<p>Program is not available for registration.</p>'; 
+						}
+						
 
 					}
 
