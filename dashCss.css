@@ -27,6 +27,7 @@
 		background: #fff;
 		border-radius: 5px;
 		border-radius: 5px;
+		margin-bottom: 15px;
 	}
 	.householdPic-wrap {
 		text-align: center;
@@ -46,14 +47,11 @@
 		position: relative;
 		padding: 15px 100px 15px 15px;
 	}
-	.householdName {
-		position: relative;
-		padding: 15px 100px 15px 15px;
-	}
+
 	.householdNameTxt {
 		font-weight: bold;
 		white-space: nowrap;
-		max-width: 200px;
+		max-width: 250px;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
@@ -89,7 +87,7 @@
 	.dashboardLayout .vCol {
 		display: inline-block;
 		vertical-align: top;
-		width: 46%;
+		width: 90%;
 		margin-left: 4%;
 		margin-right: -4px;
 	}

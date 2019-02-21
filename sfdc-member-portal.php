@@ -100,9 +100,9 @@ function wp_focus_program( $atts ) {
 		</div>
 		<div class="cardStyle">
 			<div class="cardTitle hasLink">
-				<div class="cardTitleTxt">Upcoming Events</div>
+				<div class="cardTitleTxt">Your Upcoming Events</div>
 				<?php if( $atts && $atts['alleventslink'] ) { ?>
-					<a href="<?php echo $siteURL.'/member-programs';?>" class="cardTitleLink">All Events</a>
+					<a href="<?php echo $siteURL.'/member-programs';?>" class="cardTitleLink">More Programs</a>
 				<?php } ?>
 			</div>
 			<div class="cardBody">
@@ -117,6 +117,9 @@ function wp_focus_program( $atts ) {
 							<div class="eventName"><?php if( $campRec->fields ) { echo $campRec->fields->Name;
 								/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></div>
 							<div class="eventDate">
+								<?php if( $record_signedup ) { echo $record_signedup->fields->Contact->Name; } ?>
+							</div>
+			 				<div class="eventDate">
 								<?php 
 								if( $campRec->fields ) {
 									$date = date_create( $campRec->fields->StartDate );
@@ -397,9 +400,9 @@ function render_focus_volunteer_landing_page( $atts ) {
 				<?php } ?>
 				<div class="cardStyle">
 					<div class="cardTitle hasLink">
-						<div class="cardTitleTxt">Volunteer Opportunities</div>
+						<div class="cardTitleTxt">Your Upcoming Volunteer Activities</div>
 						<?php if( $attrs['alloppslink'] == 'true' ) { ?>
-							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="cardTitleLink">All opps</a>
+							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="cardTitleLink">More Opps</a>
 						<?php } ?>
 					</div>
 					<div class="cardBody">
@@ -806,11 +809,32 @@ function render_focus_account_information() {
 						echo 'Family Since '.date_format($date,"Y");?>
 					</p>
 				</li>
-				<li>
-					<div class="amtDue">Total Due: $<?php echo $contactRec->fields->Account->Total_Due__c;?></div>
-				</li>
 			<?php } ?>
 		</ul>
+		<div class="householdName">
+			<div class="householdNameTxt">Thanks you!</div>
+		</div>
+		<div class="divider"></div>
+		<div class="donations">
+			<div class="donationAmt">$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?> <a href="<?php echo $siteURL.'/donations';?>" class="viewLinkSm">View All</a></div>
+			
+			<div class="donationYr">Donations <?php echo date("Y"); ?><br/>
+				<?php if( $contactRec->fields->Account->Level__r ) { ?>
+					<b><?php echo $contactRec->fields->Account->Level__r->Name; ?> Level Donor</b>
+				<?php
+				}?>				
+			</div>	
+		</div>
+		<div class="divider"></div>
+		<div class="donations">
+			<div class="donationAmt"><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?> <a href="<?php echo $siteURL.'/volunteers';?>" class="viewLinkSm">View All</a></div>
+			<div class="donationYr">Hours Volunteered</div>	
+		</div>	
+		<div class="divider"></div>
+		<div class="donations">
+			<div class="donationAmt">$<?php echo $contactRec->fields->Account->Total_Due__c; ?></div>
+			<div class="donationYr">Total Due for Programs</div>	
+		</div>
 	</div>
 	<?php
 }
@@ -865,14 +889,12 @@ function render_focus_family_dashboard() { ?>
 <div class="dashboardLayoutContainer">
 	<div class="dashboardLayout">
 		<div class="dashboardLayoutCol householdCol">
-			<?php echo do_shortcode( '[focus_accountinfo]' ); //shortcode to display account information ( left sidebar )?>	
+			<?php echo do_shortcode( '[focus_accountinfo]' ) //shortcode to display account information ( left sidebar )
+			?>	
 		</div>	
 		<div class="dashboardLayoutCol">
 			<div class="vCol">
-				<?php echo do_shortcode( '[focus_programs featuredlimit="3" upcominglimit="5" alleventslink="true"]' ); //shortcode to display events ( my and featured )?>
-			</div>
-			<div class="vCol">
-				<?php echo do_shortcode( '[focus_donation_volunteer_details]' ); //Shortcode to display donations and volunteered hours  ( Thank you for being a focus family ); //shortcode to display events ( my and featured )
+				<?php echo do_shortcode( '[focus_programs featuredlimit="3" upcominglimit="5" alleventslink="true"]' ); //shortcode to display events ( my and featured )?
 				 echo do_shortcode( '[focus_volunteers showmyjobs="false" alloppslink="true"]' ); //volunteer opportunities ?>
 			</div>	
 		</div>
