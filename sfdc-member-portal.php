@@ -32,6 +32,7 @@ function wp_focus_program( $atts ) {
 	$mySforceConnection = $connectionData->SforceConnectionToken;
 	$contactid = $connectionData->currentContactId;
 	$accountid = $connectionData->currentAccountId;
+	$contactRec = $connectionData->contactRecord;
 
 	$siteURL = get_site_url();
 	
@@ -45,9 +46,13 @@ function wp_focus_program( $atts ) {
 		$upcomingLimitClause = ' LIMIT '.$atts['upcominglimit'];
 	}
 	
- 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.Id, Campaign.name, Campaign.StartDate, Campaign.Type, Campaign.Parent.Id, Campaign.Parent.Name  from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
+ 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.Id, Campaign.name, Campaign.StartDate, Campaign.Type, Campaign.Parent.Id, Campaign.Parent.Name, Campaign.Parent.StartDate, Campaign.TYA_monthly_invite__c, Campaign.TYI_camp_invite__c, Campaign.Parent.TYA_monthly_invite__c, Campaign.Parent.TYI_camp_invite__c, Campaign.Parent.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
 
-	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
+	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId, TYA_monthly_invite__c, TYI_camp_invite__c, Parent.Id, Parent.Name, Parent.StartDate, Parent.TYA_monthly_invite__c, Parent.TYI_camp_invite__c, Parent.Type from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
+
+	$query_contactsWithMonthlyInviteCheck = "select Id, Name from Contact where AccountId = '" . $accountid . "' AND TYA_Monthly_Invite__c = true";
+
+	$query_contactsWithCampInviteCheck = "select Id, Name from Contact where AccountId = '" . $accountid . "' AND TYA_Camp_Invite__c = true";
 
 	$querySuccess = true;
 	$content = '';
@@ -55,6 +60,8 @@ function wp_focus_program( $atts ) {
 	try {
 		$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
 		$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
+		$response_contactsWithMonthlyInviteCheck = $mySforceConnection->query($query_contactsWithMonthlyInviteCheck);
+		$response_contactsWithCampInviteCheck = $mySforceConnection->query($query_contactsWithCampInviteCheck);
 	} catch( Exception $e ) {
 		echo 'Something went wrong :'.$e->getMessage();
 		$querySuccess = false;
@@ -71,7 +78,9 @@ function wp_focus_program( $atts ) {
 					<p>No programs found</p>
 				<?php } else{ ?>
 					<div class="eventList">
-				  <?php foreach ($response_programs_scheduled->records as $record_scheduled) {
+				  <?php 
+				  	$displayedParentCampaigns = [];
+				  	foreach ($response_programs_scheduled->records as $record_scheduled) {
 						$record_scheduled = new SObject( $record_scheduled );
 						$addtolist = true;
 						foreach ($response_programs_signedup->records as $record_signedup) {
@@ -81,18 +90,45 @@ function wp_focus_program( $atts ) {
 								$addtolist = false;
 							}
 						}
-						if ($addtolist) { ?>
-						<div class="eventItem">
-							<div class="eventName"><?php echo $record_scheduled->fields->Name; ?></div>
-							<div class="eventDate">
-								<?php 
-									$date = date_create( $record_scheduled->fields->StartDate );
-									echo date_format($date,"F d, Y");
-								?>
+						//if parent campaign is present for any campaign then only display parent campaign and skip child campaigns
+						//At campaign detail page if it is a parent campaign then display all it's child campaigns
+						$parentCampaign = new SObject( $record_scheduled->fields->Parent );
+						if( $parentCampaign->Id != '' 
+							&& in_array( $parentCampaign->Id, $displayedParentCampaigns) ) { 
+							$addtolist = false;
+						}
+						if( $parentCampaign->Id != '' ) {
+							$rec = $parentCampaign;
+							if( !in_array( $parentCampaign->Id, $displayedParentCampaigns) ) {
+								array_push( $displayedParentCampaigns, $parentCampaign->Id );
+							}
+						} else {
+							$rec = $record_scheduled;
+						}
+						//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Teen Group" then don't display campaign
+						if( $rec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 &&
+						 $rec->fields->Type == 'Teen Group' ) {
+							$addtolist = false;
+						}
+						//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Camp" then don't display campaign
+						
+						if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 && $rec->fields->Type == 'Camp' ) {
+							$addtolist = false;
+						}
+						if ($addtolist) { 
+							?>
+							<div class="eventItem">
+								<div class="eventName"><?php echo $rec->fields->Name; ?></div>
+								<div class="eventDate">
+									<?php 
+										$date = date_create( $rec->fields->StartDate );
+										echo date_format($date,"F d, Y");
+									?>
+								</div>
+								<a href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>								
 							</div>
-							<a href="<?php echo $siteURL.'/campaign?cmpid='.$record_scheduled->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
-						</div>
-						<?php } ?>
+						<?php 
+						} ?>
 					<?php } ?>
 					</div>
 				<?php }?>
@@ -110,9 +146,36 @@ function wp_focus_program( $atts ) {
 					<p>No programs found</p>
 				<?php } else { ?>
 					<div class="eventList">
-				<?php foreach ($response_programs_signedup->records as $record_signedup) {
+				<?php 
+				$shownParentCampaigns = [];
+				foreach ($response_programs_signedup->records as $record_signedup) {
 					$record_signedup = new SObject( $record_signedup ); 
-					$campRec = new SObject( $record_signedup->fields->Campaign ); ?>
+					$campRec = new SObject( $record_signedup->fields->Campaign ); 
+					$addtolist = true;
+					if( $campRec->fields && $campRec->fields->Parent )  { 
+						$parentCampaign = new SObject( $campRec->fields->Parent );
+						if( in_array( $parentCampaign->Id, $shownParentCampaigns) ) {
+							$addtolist = false;
+						} else {
+							array_push( $shownParentCampaigns, $parentCampaign->Id );
+							$campRec = $parentCampaign;
+						}
+					}
+
+					//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Teen Group" then don't display campaign
+					if( $campRec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 &&
+					 $rec->fields->Type == 'Teen Group' ) {
+						$addtolist = false;
+					}
+
+					//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Camp" then don't display campaign
+					if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 &&
+					 $rec->fields->Type == 'Camp' ) {
+						$addtolist = false;
+					}
+					
+					if( $addtolist ) {
+					?>
 						<div class="eventItem">
 							<div class="eventName"><?php if( $campRec->fields ) { echo $campRec->fields->Name;
 								/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></div>
@@ -129,7 +192,8 @@ function wp_focus_program( $atts ) {
 							</div>
 							<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
 						</div>
-				<?php }	?>
+				<?php } 
+					}	?>
 					</div>
 				<?php }	?>	
 			</div>
@@ -184,7 +248,9 @@ function render_focus_campaign_landing_page() {
 
 		$query_currentaccount_contacts    = "select Id, Name from Contact where AccountId = '" . $accountid . "'";		
 
-		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c from Campaign where ID='" . $_GET['cmpid'] . "'";		
+		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c, Parent.Id  from Campaign where ID='" . $_GET['cmpid'] . "'";	
+			
+		$query_childCampaigns    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c, Parent.Id  from Campaign where ParentId='" . $_GET['cmpid'] . "'";	
 
 		//Fetch mapping of form and campaign type from SF custom object "Program Forms"
 		$query_form_campaign_mapping    = "select Name, Form_Number__c, Individual_Request__c from Program_Forms__c";
@@ -195,6 +261,7 @@ function render_focus_campaign_landing_page() {
 			$response_currentaccount_contacts = $mySforceConnection->query( $query_currentaccount_contacts );
 			$response_campaigndetails = $mySforceConnection->query( $query_campaigndetails );
 			$response_form_campaign_mapping = $mySforceConnection->query( $query_form_campaign_mapping );
+			$response_childCampaigns = $mySforceConnection->query( $query_childCampaigns );
 		} catch( Exception $e ) {
 			echo 'Something went wrong :'.$e->getMessage();
 			$querySuccess = false;			
@@ -219,88 +286,92 @@ function render_focus_campaign_landing_page() {
 
 			if ( count( $response_campaigndetails->records ) > 0 ) {
 
-				$campaigndetails = new SObject( $response_campaigndetails->records[0] );
-
+				$campaignRecords = [];
+				if( count( $response_childCampaigns->records ) == 0 ) {
+					array_push($campaignRecords, $response_campaigndetails->records[0]);	
+				} else {
+					$campaignRecords = $response_childCampaigns->records;
+				}
 				$content = '';
+				for( $i = 0; $i < count( $campaignRecords ); $i++ ) {
+					$campRecord = new SObject( $campaignRecords[ $i ] );
 
-				$content .= '<h2>' . $campaigndetails->fields->Name . '</h2>';
-				$content .= '<p>Location : ' . $campaigndetails->fields->Location__c . '</p>';
-				$content .= '<p>' . $campaigndetails->fields->Description . '</p>';
+					$content .= '<h2>' . $campRecord->fields->Name . '</h2>';
+					$content .= '<p>Location : ' . $campRecord->fields->Location__c . '</p>';
+					$content .= '<p>' . $campRecord->fields->Description . '</p>';
 
-				$content .= '
-					<table>
-						<tr>
-							<th>Start Date</th>
-							<th>End Date</th>
-							<th>Registration Fee</th>
-						</tr>';
+					$content .= '
+						<table>
+							<tr>
+								<th>Start Date</th>
+								<th>End Date</th>
+								<th>Registration Fee</th>
+							</tr>
+							<tr>
+								<td>' . $campRecord->fields->StartDate . '</td>
+								<td>' . $campRecord->fields->EndDate . '</td>
+								<td>$ ' . $campRecord->fields->Registration_Fee__c . '</td>
+							</tr>
+						</table>';
 
-				$content .=
-					'<tr>
-						<td>' . $campaigndetails->fields->StartDate . '</td>
-						<td>' . $campaigndetails->fields->EndDate . '</td>
-						<td>$ ' . $campaigndetails->fields->Registration_Fee__c . '</td>
-					</tr>';
+					
+					$todayDate = date('Y-m-d');
+					$todayDate = date('Y-m-d', strtotime($todayDate));
+					$campRegStartDate = '';
+					$campRegEndDate = '';
 
-				$content .= '</table>';
+					if( $campRecord->fields->Registration_Date__c != '' && $campRecord->fields->Registration_Date__c != null ) {
+						$campRegStartDate = date( 'Y-m-d', strtotime( $campRecord->fields->Registration_Date__c ) );
+					}
+					if( $campRecord->fields->Registration_End_Date__c != '' && $campRecord->fields->Registration_End_Date__c != null ) {
+						$campRegEndDate = date( 'Y-m-d', strtotime( $campRecord->fields->Registration_End_Date__c ) );
+					}
 
-				
-				$todayDate = date('Y-m-d');
-				$todayDate = date('Y-m-d', strtotime($todayDate));
-				$campRegStartDate = '';
-				$campRegEndDate = '';
+					if ( $formCampaignMapping[ $campRecord->fields->Type ] ) {
 
-				if( $campaigndetails->fields->Registration_Date__c != '' && $campaigndetails->fields->Registration_Date__c != null ) {
-					$campRegStartDate = date( 'Y-m-d', strtotime( $campaigndetails->fields->Registration_Date__c ) );
-				}
-				if( $campaigndetails->fields->Registration_End_Date__c != '' && $campaigndetails->fields->Registration_End_Date__c != null ) {
-					$campRegEndDate = date( 'Y-m-d', strtotime( $campaigndetails->fields->Registration_End_Date__c ) );
-				}
+						if ( $formCampaignMapping[ $campRecord->fields->Type ]->isIndividualRequest == 'true' ) {
+							
+							//check if today's date is between start and end date. If in between then only show sign up button
+							if( ( $campRegStartDate != '' && $campRegEndDate != '' && ( $todayDate > $campRegStartDate ) && ( $todayDate < $campRegEndDate ) ) || 
+								( $campRegStartDate != '' && $campRegEndDate == '' && ( $todayDate > $campRegStartDate ) ) ||
+								( $campRegStartDate == '' && $campRegEndDate != '' && ( $todayDate < $campRegEndDate )  ) ||
+								( $campRegStartDate == '' && $campRegEndDate == '' )
+							) {
+								$content .= '<p><a class="button" href="#ex'.$i.'" rel="modal:open">Sign Up</a></p>';
+							} else {
+								$content .= '<p>Program is not available for registration.</p>'; 
+							}
+							//show modal
+							$content .= '
+							<div id="ex'.$i.'" class="modal">
+								<h4>Select Member</h4>
+								<ul>';
 
-				if ( $formCampaignMapping[ $campaigndetails->fields->Type ] ) {
+							foreach ($response_currentaccount_contacts->records as $record_contact) {
 
-					if ( $formCampaignMapping[ $campaigndetails->fields->Type ]->isIndividualRequest == 'true' ) {
-						
-						//check if today's date is between start and end date. If in between then only show sign up button
-						if( ( $campRegStartDate != '' && $campRegEndDate != '' && ( $todayDate > $campRegStartDate ) && ( $todayDate < $campRegEndDate ) ) || 
-							( $campRegStartDate != '' && $campRegEndDate == '' && ( $todayDate > $campRegStartDate ) ) ||
-							( $campRegStartDate == '' && $campRegEndDate != '' && ( $todayDate < $campRegEndDate )  ) ||
-							( $campRegStartDate == '' && $campRegEndDate == '' )
-						) {
-							$content .= '<p><a class="button" href="#ex1" rel="modal:open">Sign Up</a></p>';
+								$record_contact = new SObject( $record_contact );
+
+								$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->Id . '&cmpid=' . $campRecord->Id . '&formid=' . $formCampaignMapping[ $campRecord->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
+							}
+
+							$content .= '</ul></div>';
+
 						} else {
-							$content .= '<p>Program is not available for registration.</p>'; 
+							//check if today's date is between start and end date. If in between then only show sign up button
+							if( ( $todayDate > $campRegStartDate ) && ( $todayDate < $campRegEndDate ) ) {
+							    $content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campRecord->Id . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campRecord->fields->Type ]->formNumber . '">Sign Up</a></p>';
+							} else {
+								$content .= '<p>Program is not available for registration.</p>'; 
+							}
+							
+
 						}
-						//show modal
-						$content .= '
-						<div id="ex1" class="modal">
-							<h4>Select Member</h4>
-							<ul>';
-
-						foreach ($response_currentaccount_contacts->records as $record_contact) {
-
-							$record_contact = new SObject( $record_contact );
-
-							$content .= '<li><a href="' . $siteURL . '/campaign/?cntid=' . $record_contact->Id . '&cmpid=' . $campaigndetails->Id . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">' . $record_contact->fields->Name . '</a></li>';
-						}
-
-						$content .= '</ul>';
-
-					} else {
-						//check if today's date is between start and end date. If in between then only show sign up button
-						if( ( $todayDate > $campRegStartDate ) && ( $todayDate < $campRegEndDate ) ) {
-						    $content .= '<p><a class="button" href="' . $siteURL . '/campaign?cmpid=' . $campaigndetails->Id . '&cntid=' . $contactid . '&formid=' . $formCampaignMapping[ $campaigndetails->fields->Type ]->formNumber . '">Sign Up</a></p>';
-						} else {
-							$content .= '<p>Program is not available for registration.</p>'; 
-						}
-						
 
 					}
 
-				}
-
+					
+				}//for loop 
 				echo $content;
-
 			} else {
 				echo '<p>Campaign not found.</p>';
 			}
@@ -637,7 +708,7 @@ function connectWPtoSFandGetUserInfo() {
 		exit;
 	}
 
-	$query_user_info = "SELECT Id, Name, AccountId, Account.Total_Due__c, Account.npo02__OppAmountThisYear__c, Account.npo02__Informal_Greeting__c, Account.Name, Account.Primary_Email__c, Account.Phone, Account.CreatedDate, Account.BillingStreet, Account.BillingCity, Account.BillingState, Account.BillingPostalCode, Account.BillingCountry, Account.npo02__TotalOppAmount__c, Account.Level__r.Name, GW_Volunteers__Volunteer_Hours__c FROM Contact WHERE Email = '".$userEmail."'";
+	$query_user_info = "SELECT Id, Name, AccountId, Account.Total_Due__c, Account.npo02__OppAmountThisYear__c, Account.npo02__Informal_Greeting__c, Account.Name, Account.Primary_Email__c, Account.Phone, Account.CreatedDate, Account.BillingStreet, Account.BillingCity, Account.BillingState, Account.BillingPostalCode, Account.BillingCountry, Account.npo02__TotalOppAmount__c, Account.Level__r.Name, GW_Volunteers__Volunteer_Hours__c, TYA_Camp_Invite__c, TYA_Monthly_Invite__c FROM Contact WHERE Email = '".$userEmail."'";
 	$response_user_info = $mySforceConnection->query($query_user_info);
 	//if respective contact found at SF then only show programs
 	$contactid = '';
