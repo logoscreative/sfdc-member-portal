@@ -54,6 +54,8 @@ function wp_focus_program( $atts ) {
 
 	$query_contactsWithCampInviteCheck = "select Id, Name from Contact where AccountId = '" . $accountid . "' AND TYA_Camp_Invite__c = true";
 
+	$query_accountOpportunities = "SELECT Id, npsp__Primary_Contact__c, npsp__Primary_Contact__r.AccountId, CampaignId, Name, Amount FROM Opportunity WHERE npsp__Primary_Contact__r.AccountId = '" . $accountid . "' AND CampaignId != '' ORDER BY CreatedDate DESC";
+
 	$querySuccess = true;
 	$content = '';
 
@@ -62,12 +64,25 @@ function wp_focus_program( $atts ) {
 		$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
 		$response_contactsWithMonthlyInviteCheck = $mySforceConnection->query($query_contactsWithMonthlyInviteCheck);
 		$response_contactsWithCampInviteCheck = $mySforceConnection->query($query_contactsWithCampInviteCheck);
+		$response_accountOpportunities = $mySforceConnection->query($query_accountOpportunities);
 	} catch( Exception $e ) {
 		echo 'Something went wrong :'.$e->getMessage();
 		$querySuccess = false;
 	}
 
-	if( $querySuccess ) { 	?>
+	if( $querySuccess ) { 	
+		$opportunityEvents = array();
+		//create a map for current acount's contact opportunities and events
+		if( count( $response_accountOpportunities->records ) > 0 ) {
+			foreach ($response_accountOpportunities->records as $record_opp ) {
+				$record_opp = new SObject( $record_opp );
+				$arrKey = $record_opp->fields->npsp__Primary_Contact__c.'_'.$record_opp->fields->CampaignId;
+				if( !array_key_exists( $arrKey, $opportunityEvents ) ) {
+					$opportunityEvents[ $arrKey ] = $record_opp->fields->Amount;
+				}
+			}
+		}
+		?>
 		<div class="cardStyle">
 			<div class="cardTitle">
 				<div class="cardTitleTxt">Featured Events</div>
@@ -105,14 +120,13 @@ function wp_focus_program( $atts ) {
 						} else {
 							$rec = $record_scheduled;
 						}
-						//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Teen Group" then don't display campaign
-						if( $rec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 &&
-						 $rec->fields->Type == 'Teen Group' ) {
+						//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
+						if( $rec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 ) {
 							$addtolist = false;
 						}
-						//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Camp" then don't display campaign
+						//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
 						
-						if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 && $rec->fields->Type == 'Camp' ) {
+						if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
 							$addtolist = false;
 						}
 						if ($addtolist) { 
@@ -125,7 +139,7 @@ function wp_focus_program( $atts ) {
 										echo date_format($date,"F d, Y");
 									?>
 								</div>
-								<a href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>								
+								<a href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>" class="btnStyle btnBlue viewBtn">View</a>								
 							</div>
 						<?php 
 						} ?>
@@ -152,7 +166,7 @@ function wp_focus_program( $atts ) {
 					$record_signedup = new SObject( $record_signedup ); 
 					$campRec = new SObject( $record_signedup->fields->Campaign ); 
 					$addtolist = true;
-					if( $campRec->fields && $campRec->fields->Parent )  { 
+					/*if( $campRec->fields && $campRec->fields->Parent )  { 
 						$parentCampaign = new SObject( $campRec->fields->Parent );
 						if( in_array( $parentCampaign->Id, $shownParentCampaigns) ) {
 							$addtolist = false;
@@ -160,17 +174,15 @@ function wp_focus_program( $atts ) {
 							array_push( $shownParentCampaigns, $parentCampaign->Id );
 							$campRec = $parentCampaign;
 						}
-					}
+					}*/
 
-					//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Teen Group" then don't display campaign
-					if( $campRec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 &&
-					 $rec->fields->Type == 'Teen Group' ) {
+					//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
+					if( $campRec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 ) {
 						$addtolist = false;
 					}
 
-					//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) and campaign type is "Camp" then don't display campaign
-					if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 &&
-					 $rec->fields->Type == 'Camp' ) {
+					//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact)  then don't display campaign
+					if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
 						$addtolist = false;
 					}
 					
@@ -188,9 +200,16 @@ function wp_focus_program( $atts ) {
 									$date = date_create( $campRec->fields->StartDate );
 									echo date_format($date,"F d, Y");
 								}
+								//display respective opportunity price
+								if( $record_signedup ) {
+									$reqArrKey = $record_signedup->fields->Contact->Id.'_'.$campRec->Id;
+									if( array_key_exists( $reqArrKey, $opportunityEvents ) ) {
+										echo '<br /> $'.$opportunityEvents[ $reqArrKey ];
+									}
+								}
 								?>
 							</div>
-							<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id; ?>" class="btnStyle btnBlue viewBtn">View</a>
+							<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id.'&showParent=false'; ?>" class="btnStyle btnBlue viewBtn">View</a>
 						</div>
 				<?php } 
 					}	?>
@@ -287,10 +306,10 @@ function render_focus_campaign_landing_page() {
 			if ( count( $response_campaigndetails->records ) > 0 ) {
 
 				$campaignRecords = [];
-				if( count( $response_childCampaigns->records ) == 0 ) {
-					array_push($campaignRecords, $response_campaigndetails->records[0]);	
+				if( count( $response_childCampaigns->records ) > 0 && isset( $_GET['showParent'] ) && $_GET['showParent'] == 'true' ) {
+					$campaignRecords = $response_childCampaigns->records;						
 				} else {
-					$campaignRecords = $response_childCampaigns->records;
+					array_push($campaignRecords, $response_campaigndetails->records[0]);
 				}
 				$content = '';
 				for( $i = 0; $i < count( $campaignRecords ); $i++ ) {
