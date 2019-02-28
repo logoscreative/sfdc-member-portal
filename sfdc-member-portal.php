@@ -13,7 +13,7 @@ add_action( 'wp_enqueue_scripts', 'load_dashicons_front_end' );
 
 function load_dashicons_front_end() {
 	wp_enqueue_style( 'dashicons' );
-	wp_enqueue_style( 'dashCss', plugins_url('/dashCss.css', __FILE__) );
+	//wp_enqueue_style( 'dashCss', plugins_url('/dashCss.css', __FILE__) );
 	wp_enqueue_style( 'fontFamily', 'https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700' );	
 }
 
@@ -83,16 +83,13 @@ function wp_focus_program( $atts ) {
 			}
 		}
 		?>
-		<div class="cardStyle">
-			<div class="cardTitle">
-				<div class="cardTitleTxt">Featured Events</div>
-			</div>
-			<div class="cardBody">
+		<div>
+			<p>Featured Events</p>
 				<?php 
 				if( count( $response_programs_scheduled->records ) == 0 ) { ?>
 					<p>No programs found</p>
 				<?php } else{ ?>
-					<div class="eventList">
+					<div class="clearfix">
 				  <?php 
 				  	$displayedParentCampaigns = [];
 				  	foreach ($response_programs_scheduled->records as $record_scheduled) {
@@ -131,35 +128,38 @@ function wp_focus_program( $atts ) {
 						}
 						if ($addtolist) { 
 							?>
-							<div class="eventItem">
-								<div class="eventName"><?php echo $rec->fields->Name; ?></div>
-								<div class="eventDate">
+							<div class="five-sixths first">
+								<h6><b><?php echo $rec->fields->Name; ?></b></h6>
+								<div class="has-small-font-size">
 									<?php 
 										$date = date_create( $rec->fields->StartDate );
 										echo date_format($date,"F d, Y");
 									?>
 								</div>
-								<a href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>" class="btnStyle btnBlue viewBtn">View</a>								
+							</div>	
+							<div class="one-sixth">
+								<a class="button" href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>">View</a>								
 							</div>
+							<p>&nbsp;</p>
 						<?php 
 						} ?>
 					<?php } ?>
 					</div>
 				<?php }?>
-			</div>
+			
 		</div>
-		<div class="cardStyle">
-			<div class="cardTitle hasLink">
-				<div class="cardTitleTxt">Your Upcoming Events</div>
+		<div>
+		    <div class="clearfix">
+				<p class="alignleft">Your Upcoming Events</p>
 				<?php if( $atts && $atts['alleventslink'] ) { ?>
-					<a href="<?php echo $siteURL.'/member-programs';?>" class="cardTitleLink">More Programs</a>
+					<a href="<?php echo $siteURL.'/member-programs';?>" class="alignright">More Programs</a>
 				<?php } ?>
 			</div>
-			<div class="cardBody">
+			<div>
 				<?php if( count( $response_programs_signedup->records ) == 0 ) { ?>
 					<p>No programs found</p>
 				<?php } else { ?>
-					<div class="eventList">
+					<div class="clearfix">
 				<?php 
 				$shownParentCampaigns = [];
 				foreach ($response_programs_signedup->records as $record_signedup) {
@@ -188,13 +188,13 @@ function wp_focus_program( $atts ) {
 					
 					if( $addtolist ) {
 					?>
-						<div class="eventItem">
-							<div class="eventName"><?php if( $campRec->fields ) { echo $campRec->fields->Name;
-								/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></div>
-							<div class="eventDate">
+						<div class="five-sixths first">
+							<h6><b><?php if( $campRec->fields ) { echo $campRec->fields->Name;
+								/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></b></h6>
+							<div class="has-small-font-size">
 								<?php if( $record_signedup ) { echo $record_signedup->fields->Contact->Name; } ?>
 							</div>
-			 				<div class="eventDate">
+			 				<div class="has-small-font-size">
 								<?php 
 								if( $campRec->fields ) {
 									$date = date_create( $campRec->fields->StartDate );
@@ -209,8 +209,11 @@ function wp_focus_program( $atts ) {
 								}
 								?>
 							</div>
-							<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id.'&showParent=false'; ?>" class="btnStyle btnBlue viewBtn">View</a>
-						</div>
+						</div>	
+							<div class="one-sixth">
+								<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id.'&showParent=false'; ?>" class="button">View</a>
+							</div>
+						<p>&nbsp;</p>
 				<?php } 
 					}	?>
 					</div>
@@ -454,14 +457,12 @@ function render_focus_volunteer_landing_page( $atts ) {
 		if( $querySuccess ) {
 			if( $attrs[ 'showmyjobs' ] == 'true' ) {	//show my jobs only when it is set in shortcode
 			?>
-				<div class="cardStyle">
-					<div class="cardTitle">
-						<div class="cardTitleTxt">My Jobs</div>
-					</div>
-					<div class="cardBody">
+				<div>
+					<p>My Jobs</p>
+					<div>
 						<?php
 						if( count( $response_myjobs->records ) > 0 ) { ?>
-							<div class="eventList">
+							<div>
 								<?php foreach ( $response_myjobs->records as $record_myjob ) { 
 										$record_myjob = new SObject( $record_myjob );
 										$jobRec = new SObject( $record_myjob->fields->GW_Volunteers__Volunteer_Job__r );
@@ -469,9 +470,9 @@ function render_focus_volunteer_landing_page( $atts ) {
 											$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );	
 										}										
 								?>
-								<div class="eventItem">
-									<div class="eventName"><?php if( $jobRec->fields ) { echo $jobRec->fields->Name ; }?>	</div>
-									<div class="eventDate"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name ; }?><span style="margin-left:7px;">
+								<div>
+									<h6><b><?php if( $jobRec->fields ) { echo $jobRec->fields->Name ; }?></h6></h6>
+									<div class="has-small-font-size"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name ; }?><span style="margin-left:7px;">
 									<?php 
 										$date = date_create( $record_myjob->fields->GW_Volunteers__Start_Date__c );
 										echo date_format($date,"F d, Y");?>
@@ -488,17 +489,17 @@ function render_focus_volunteer_landing_page( $atts ) {
 					</div>
 				</div>
 				<?php } ?>
-				<div class="cardStyle">
-					<div class="cardTitle hasLink">
-						<div class="cardTitleTxt">Your Upcoming Volunteer Activities</div>
+				<div>
+					<div class="clearfix">
+						<p class="alignleft">Your Upcoming Volunteer Activities</p>
 						<?php if( $attrs['alloppslink'] == 'true' ) { ?>
-							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="cardTitleLink">More Opps</a>
+							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="alignright">More Opps</a>
 						<?php } ?>
 					</div>
-					<div class="cardBody">
+					<div>
 						<?php
 						if( count( $response_jobs->records ) > 0 ) { ?>
-						<div class="eventList">
+						
 							<?php foreach ( $response_jobs->records as $record_job ) { 
 								$record_job = new SObject( $record_job );
 								$jobRec = new SObject( $record_job->fields->GW_Volunteers__Volunteer_Job__r );
@@ -506,18 +507,23 @@ function render_focus_volunteer_landing_page( $atts ) {
 									$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );
 								}
 							?>
-							<div class="eventItem">
-								<div class="eventName"><?php if( $jobRec->fields ) { echo $jobRec->fields->Name; }?></div>
-								<div class="eventDate"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name;} ?><span style="margin-left:7px;">
-								<?php 
-								$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
-								echo date_format($date,"F d, Y");?>
-								</span></div>
-								<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="btnStyle btnBlue viewBtn">View</a>
+							<div class="clearfix">
+								<div class="five-sixths first">
+									<h6><b><?php if( $jobRec->fields ) { echo $jobRec->fields->Name; }?></b></h6>
+									<div class="has-small-font-size"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name;} ?><span style="margin-left:7px;">
+									<?php 
+									$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
+									echo date_format($date,"F d, Y");?>
+									</span></div>
+								</div>
+								<div class="one-sixth">			
+									<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="button">View</a>
+								</div>
+								<p>&nbsp;</p>
 							</div>
 							<?php
 							} ?>
-						</div>
+						
 						<?php 
 						} else {
 							echo '<p>No opportunities found</p>';
@@ -864,66 +870,62 @@ function render_focus_account_information() {
 	}
 	$currentUser = wp_get_current_user();
 	?>
-	<div class="household">
+	<div>
 		<!--<div class="householdPic-wrap">
 			<?php echo get_avatar( $currentUser->ID, 227 ); ?>
 		</div>-->
-		<img src="https://d3r03scjf2irwr.cloudfront.net/content/uploads/2019/02/16142132/ff.png" alt="" class="householdPic"/>
-		<div class="householdName">
-			<div class="householdNameTxt"><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></div>
-			
-		</div>
-		<ul class="householdNameInfo">
+		<img src="https://d3r03scjf2irwr.cloudfront.net/content/uploads/2019/02/16142132/ff.png" alt="" width="100%"/>
+		<p><b><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></b></p>
+		<ul>
 			<?php if( $BillingAddress != '' ) {?>
 				<li>
-					<img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" class="infoIcon"/>
-					<p><?php echo $BillingAddress;?></p>
+					<p><img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" width="21"/>
+					<span><?php echo $BillingAddress;?></span></p>
 				</li>
 			<?php
 			} if( $contactRec->fields->Account->Phone != '' ) {?>			
 				<li>
-					<img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" class="infoIcon"/>
-					<p><?php echo $contactRec->fields->Account->Phone;?></p>
+					<p><img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" width="21"/>
+					<span><?php echo $contactRec->fields->Account->Phone;?></span></p>
 				</li>
 			<?php } if( $contactRec->fields->Account->Primary_Email__c != '' ) { ?>
 				<li>
-					<img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" class="infoIcon"/>
-					<p><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>" class="emailLink"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></p>
+					<p><img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="21"/>
+					<span><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></span></p>
 				</li>
 			<?php } if( $contactRec->fields->Account->CreatedDate != '' ) { ?>		
 				<li>
-					<img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" class="infoIcon"/>
-					<p>
+					<p><img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" width="21"/>
+					<span>
 						<?php 
 						$date=date_create( $contactRec->fields->Account->CreatedDate );
 						echo 'Family Since '.date_format($date,"Y");?>
-					</p>
+					</span></p>
 				</li>
 			<?php } ?>
 		</ul>
-		<div class="householdName">
-			<div class="householdNameTxt">Thanks you!</div>
-		</div>
-		<div class="divider"></div>
-		<div class="donations">
-			<div class="donationAmt">$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?> <a href="<?php echo $siteURL.'/donations';?>" class="viewLinkSm">View All</a></div>
-			
-			<div class="donationYr">Donations <?php echo date("Y"); ?><br/>
+		<p><b>Thanks you!</b></p>
+		<div>
+			<h2><b>$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?></b></h2>
+			<a href="<?php echo $siteURL.'/donations';?>" class="has-small-font-size">View All</a>
+			<div class="has-small-font-size">Donations <?php echo date("Y"); ?><br/>
 				<?php if( $contactRec->fields->Account->Level__r ) { ?>
 					<b><?php echo $contactRec->fields->Account->Level__r->Name; ?> Level Donor</b>
 				<?php
 				}?>				
 			</div>	
 		</div>
-		<div class="divider"></div>
-		<div class="donations">
-			<div class="donationAmt"><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?> <a href="<?php echo $siteURL.'/volunteers';?>" class="viewLinkSm">View All</a></div>
-			<div class="donationYr">Hours Volunteered</div>	
+		
+		<div>
+			<p>&nbsp;</p>
+			<h2><b><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b></h2>
+			<a href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size">View All</a>
+			<div class="has-small-font-size">Hours Volunteered</div>	
 		</div>	
-		<div class="divider"></div>
-		<div class="donations">
-			<div class="donationAmt">$<?php echo $contactRec->fields->Account->Total_Due__c; ?></div>
-			<div class="donationYr">Total Due for Programs</div>	
+		<div>
+			<p>&nbsp;</p>
+			<h2><b>$<?php echo $contactRec->fields->Account->Total_Due__c; ?></b></h2>
+			<div class="has-small-font-size">Total Due for Programs</div>	
 		</div>
 	</div>
 	<?php
@@ -946,25 +948,25 @@ function render_donation_volunteer_details() {
 	$contactRec = $connectionData->contactRecord; 
 	$siteURL = get_site_url();
 	?>
-	<div class="cardStyle">
-		<div class="cardTitle">
-			<div class="cardTitleTxt">Thank you!</div>
-		</div>
-		<div class="cardBody">
-			<div class="donations">
-				<div class="donationAmt">$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?> <a href="<?php echo $siteURL.'/donations';?>" class="viewLinkSm">View All</a></div>
+	<div>
+		<p>Thank you!</p>
+		<div>
+			<div>
+				<h2><b>$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?></b></h2>
+				<a href="<?php echo $siteURL.'/donations';?>" class="has-small-font-size">View All</a>
 				
-				<div class="donationYr">Donations <?php echo date("Y"); ?><br/>
+				<div class="has-small-font-size">Donations <?php echo date("Y"); ?><br/>
 					<?php if( $contactRec->fields->Account->Level__r ) { ?>
 						<b><?php echo $contactRec->fields->Account->Level__r->Name; ?> Level Donor</b>
 					<?php
 					}?>				
 				</div>	
 			</div>
-			<div class="divider"></div>
-			<div class="donations">
-				<div class="donationAmt"><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?> <a href="<?php echo $siteURL.'/volunteers';?>" class="viewLinkSm">View All</a></div>
-				<div class="donationYr">Hours Volunteered</div>	
+			<div>
+				<p>&nbsp;</p>
+				<h2><b><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b></h2>
+				<a href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size">View All</a>
+				<div class="has-small-font-size">Hours Volunteered</div>	
 			</div>	
 		</div>
 	</div>		
@@ -976,17 +978,14 @@ add_shortcode( 'focus_familydashboard', 'render_focus_family_dashboard' );
 
 function render_focus_family_dashboard() { ?>
     
-<div class="dashboardLayoutContainer">
-	<div class="dashboardLayout">
-		<div class="dashboardLayoutCol householdCol">
-			<?php echo do_shortcode( '[focus_accountinfo]' ) //shortcode to display account information ( left sidebar )
-			?>	
+<div>
+	<div class="clearfix">
+		<div class="one-half first">
+			<?php echo do_shortcode( '[focus_accountinfo]' ) //shortcode to display account information ( left sidebar )?>	
 		</div>	
-		<div class="dashboardLayoutCol">
-			<div class="vCol">
-				<?php echo do_shortcode( '[focus_programs featuredlimit="3" upcominglimit="5" alleventslink="true"]' ); //shortcode to display events ( my and featured )?
-				 echo do_shortcode( '[focus_volunteers showmyjobs="false" alloppslink="true"]' ); //volunteer opportunities ?>
-			</div>	
+		<div class="two-fourths">
+			<?php echo do_shortcode( '[focus_programs featuredlimit="3" upcominglimit="5" alleventslink="true"]' ); //shortcode to display events ( my and featured )?
+			echo do_shortcode( '[focus_volunteers showmyjobs="false" alloppslink="true"]' ); //volunteer opportunities ?>
 		</div>
 	</div>
 </div>
