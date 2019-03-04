@@ -83,14 +83,19 @@ function wp_focus_program( $atts ) {
 			}
 		}
 		?>
-		<div>
-			<p>Featured Events</p>
+		<table width="100%">
+			<tr><td colspan="2">
+			<span class="alignleft has-medium-font-size"><b>Featured Events</b></span>
+				<?php if( $atts && $atts['alleventslink'] ) { ?>
+					<a href="<?php echo $siteURL.'/programs';?>" class="alignright has-small-font-size">More Programs</a>
+				<?php } ?>
+			</td></tr>
 				<?php 
 				if( count( $response_programs_scheduled->records ) == 0 ) { ?>
+					<tr><td>
 					<p>No programs found</p>
-				<?php } else{ ?>
-					<div class="clearfix">
-				  <?php 
+					</td></tr>
+				<?php } else{ 
 				  	$displayedParentCampaigns = [];
 				  	foreach ($response_programs_scheduled->records as $record_scheduled) {
 						$record_scheduled = new SObject( $record_scheduled );
@@ -128,7 +133,8 @@ function wp_focus_program( $atts ) {
 						}
 						if ($addtolist) { 
 							?>
-							<div class="five-sixths first">
+							<tr>
+							<td width="70%">
 								<h6><b><?php echo $rec->fields->Name; ?></b></h6>
 								<div class="has-small-font-size">
 									<?php 
@@ -136,24 +142,22 @@ function wp_focus_program( $atts ) {
 										echo date_format($date,"F d, Y");
 									?>
 								</div>
-							</div>	
-							<div class="one-sixth">
-								<a class="button" href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>">View</a>								
-							</div>
+							</td>
+							<td>
+								<a class="button has-small-font-size" href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>">View</a>								
+							</td>
+							</tr>
 							<p>&nbsp;</p>
 						<?php 
 						} ?>
 					<?php } ?>
-					</div>
 				<?php }?>
-			
-		</div>
+		</table>
+		<br/>
+
 		<div>
-		    <div class="clearfix">
-				<p class="alignleft">Your Upcoming Events</p>
-				<?php if( $atts && $atts['alleventslink'] ) { ?>
-					<a href="<?php echo $siteURL.'/member-programs';?>" class="alignright">More Programs</a>
-				<?php } ?>
+		    <div>
+				<p class="alignleft has-medium-font-size"><b>Your Upcoming Events</b></p>
 			</div>
 			<div>
 				<?php if( count( $response_programs_signedup->records ) == 0 ) { ?>
@@ -204,7 +208,7 @@ function wp_focus_program( $atts ) {
 								if( $record_signedup ) {
 									$reqArrKey = $record_signedup->fields->Contact->Id.'_'.$campRec->Id;
 									if( array_key_exists( $reqArrKey, $opportunityEvents ) ) {
-										echo '<br /> $'.$opportunityEvents[ $reqArrKey ];
+										echo '<br /> Total Due: $'.$opportunityEvents[ $reqArrKey ];
 									}
 								}
 								?>
@@ -489,11 +493,12 @@ function render_focus_volunteer_landing_page( $atts ) {
 					</div>
 				</div>
 				<?php } ?>
+				<br/>
 				<div>
-					<div class="clearfix">
-						<p class="alignleft">Your Upcoming Volunteer Activities</p>
+					<div>
+						<p class="alignleft has-medium-font-size"><b>Your Volunteer Activities</b></p>
 						<?php if( $attrs['alloppslink'] == 'true' ) { ?>
-							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="alignright">More Opps</a>
+							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="alignright has-small-font-size">More Opps</a>
 						<?php } ?>
 					</div>
 					<div>
@@ -871,62 +876,53 @@ function render_focus_account_information() {
 	$currentUser = wp_get_current_user();
 	?>
 	<div>
-		<!--<div class="householdPic-wrap">
-			<?php echo get_avatar( $currentUser->ID, 227 ); ?>
-		</div>-->
-		<img src="https://d3r03scjf2irwr.cloudfront.net/content/uploads/2019/02/16142132/ff.png" alt="" width="100%"/>
-		<p><b><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></b></p>
-		<ul>
-			<?php if( $BillingAddress != '' ) {?>
-				<li>
-					<p><img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" width="21"/>
-					<span><?php echo $BillingAddress;?></span></p>
-				</li>
-			<?php
-			} if( $contactRec->fields->Account->Phone != '' ) {?>			
-				<li>
-					<p><img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" width="21"/>
-					<span><?php echo $contactRec->fields->Account->Phone;?></span></p>
-				</li>
-			<?php } if( $contactRec->fields->Account->Primary_Email__c != '' ) { ?>
-				<li>
-					<p><img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="21"/>
-					<span><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></span></p>
-				</li>
-			<?php } if( $contactRec->fields->Account->CreatedDate != '' ) { ?>		
-				<li>
-					<p><img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" width="21"/>
-					<span>
-						<?php 
-						$date=date_create( $contactRec->fields->Account->CreatedDate );
-						echo 'Family Since '.date_format($date,"Y");?>
-					</span></p>
-				</li>
-			<?php } ?>
-		</ul>
-		<p><b>Thanks you!</b></p>
-		<div>
-			<h2><b>$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?></b></h2>
-			<a href="<?php echo $siteURL.'/donations';?>" class="has-small-font-size">View All</a>
-			<div class="has-small-font-size">Donations <?php echo date("Y"); ?><br/>
-				<?php if( $contactRec->fields->Account->Level__r ) { ?>
-					<b><?php echo $contactRec->fields->Account->Level__r->Name; ?> Level Donor</b>
-				<?php
-				}?>				
-			</div>	
-		</div>
+		<table style="width:100%">
+			<tr>
+    				<td valign="top" width="20%"><?php echo get_avatar( $currentUser->ID, 50 ); ?></td>
+    				<td>
+				<div class="has-medium-font-size"><b><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></b></div>
+				<div>
+                        	<?php if( $contactRec->fields->Account->CreatedDate != '' ) { ?>              
+                                        	<p class="has-regular-font-size"><img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" width="21"/>
+                                        	<span>
+                                                	<?php 
+                                                	$date=date_create( $contactRec->fields->Account->CreatedDate );
+                                                	echo 'Family Since '.date_format($date,"Y");?>
+                                        	</span></p>
+                        	<?php } ?>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2">
+				<div class="has-regular-font-size">
+				<h4>Activity</h4>
+				<span class="alignleft"><b>$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?></b> Donations <?php echo date("Y"); ?></span>
+				<a href="<?php echo $siteURL.'/donations';?>" class="has-small-font-size alignright">View All</a><br/>
+				<span class="alignleft"><b><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b> Volunteer Hours</span>
+				<a href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size alignright">View All</a><br/>
+				<span class="alignleft"><b>$<?php echo $contactRec->fields->Account->Total_Due__c; ?></b> Total Amount Due</span>
+				<a href="<?php echo $siteURL.'/programs';?>" class="has-small-font-size alignright">View All</a><br/>
+				</div>
+				<b>Focus + Fragile Thanks You!</b>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2">
+				<h4>User Information</h4>
+                        	<?php if( $BillingAddress != '' ) {?>
+                                	<p class="has-small-font-size"><img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" width="21"/>
+                                        <span><?php echo $BillingAddress;?></span></p>
+                        	<?php } if( $contactRec->fields->Account->Phone != '' ) {?>
+                                        <p class="has-small-font-size"><img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" width="21"/>
+                                        <span><?php echo $contactRec->fields->Account->Phone;?></span></p>
+                        	<?php } if( $contactRec->fields->Account->Primary_Email__c != '' ) { ?>
+                                        <p class="has-small-font-size"><img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="21"/>
+                                        <span><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></span></p>
+				</td> 
+			</tr>
+                        <?php } ?>
+		</table>
 		
-		<div>
-			<p>&nbsp;</p>
-			<h2><b><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b></h2>
-			<a href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size">View All</a>
-			<div class="has-small-font-size">Hours Volunteered</div>	
-		</div>	
-		<div>
-			<p>&nbsp;</p>
-			<h2><b>$<?php echo $contactRec->fields->Account->Total_Due__c; ?></b></h2>
-			<div class="has-small-font-size">Total Due for Programs</div>	
-		</div>
 	</div>
 	<?php
 }
@@ -966,7 +962,7 @@ function render_donation_volunteer_details() {
 				<p>&nbsp;</p>
 				<h2><b><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b></h2>
 				<a href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size">View All</a>
-				<div class="has-small-font-size">Hours Volunteered</div>	
+				<div class="has-small-font-size">Volunteer Hours</div>	
 			</div>	
 		</div>
 	</div>		
