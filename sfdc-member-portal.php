@@ -46,9 +46,9 @@ function wp_focus_program( $atts ) {
 		$upcomingLimitClause = ' LIMIT '.$atts['upcominglimit'];
 	}
 	
- 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.Id, Campaign.name, Campaign.StartDate, Campaign.Type, Campaign.Parent.Id, Campaign.Parent.Name, Campaign.Parent.StartDate, Campaign.TYA_monthly_invite__c, Campaign.TYI_camp_invite__c, Campaign.Parent.TYA_monthly_invite__c, Campaign.Parent.TYI_camp_invite__c, Campaign.Parent.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
+ 	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.Id, Campaign.name, Campaign.StartDate, Campaign.Type, Campaign.Parent.Id, Campaign.Parent.Name, Campaign.Parent.StartDate, Campaign.TYA_monthly_invite__c, Campaign.TYA_camp_invite__c, Campaign.Parent.TYA_monthly_invite__c, Campaign.Parent.TYA_camp_invite__c, Campaign.Parent.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
 
-	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId, TYA_monthly_invite__c, TYI_camp_invite__c, Parent.Id, Parent.Name, Parent.StartDate, Parent.TYA_monthly_invite__c, Parent.TYI_camp_invite__c, Parent.Type from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
+	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId, TYA_monthly_invite__c, TYA_camp_invite__c, Parent.Id, Parent.Name, Parent.StartDate, Parent.TYA_monthly_invite__c, Parent.TYA_camp_invite__c, Parent.Type from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
 
 	$query_contactsWithMonthlyInviteCheck = "select Id, Name from Contact where AccountId = '" . $accountid . "' AND TYA_Monthly_Invite__c = true";
 
@@ -83,18 +83,20 @@ function wp_focus_program( $atts ) {
 			}
 		}
 		?>
+		<div class="clearfix">
+			<h4 class="alignleft has-medium-font-size"><b>Featured Events</b></h4>
+			<?php if( $atts && $atts['alleventslink'] ) { ?>
+				<a href="<?php echo $siteURL.'/programs';?>" class="alignright has-small-font-size">More Programs</a>
+			<?php } ?>
+		</div>
 		<table width="100%">
-			<tr><td colspan="2">
-			<span class="alignleft has-medium-font-size"><b>Featured Events</b></span>
-				<?php if( $atts && $atts['alleventslink'] ) { ?>
-					<a href="<?php echo $siteURL.'/programs';?>" class="alignright has-small-font-size">More Programs</a>
-				<?php } ?>
-			</td></tr>
-				<?php 
+			<?php 
 				if( count( $response_programs_scheduled->records ) == 0 ) { ?>
-					<tr><td>
-					<p>No programs found</p>
-					</td></tr>
+					<tr>
+						<td>
+							<p>No programs found</p>
+						</td>
+					</tr>
 				<?php } else{ 
 				  	$displayedParentCampaigns = [];
 				  	foreach ($response_programs_scheduled->records as $record_scheduled) {
@@ -128,14 +130,14 @@ function wp_focus_program( $atts ) {
 						}
 						//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
 						
-						if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
+						if( $rec->fields->TYA_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
 							$addtolist = false;
 						}
 						if ($addtolist) { 
 							?>
 							<tr>
 							<td width="70%">
-								<h6><b><?php echo $rec->fields->Name; ?></b></h6>
+								<div class="has-small-font-size"><b><?php echo $rec->fields->Name; ?></b></div>
 								<div class="has-small-font-size">
 									<?php 
 										$date = date_create( $rec->fields->StartDate );
@@ -144,26 +146,25 @@ function wp_focus_program( $atts ) {
 								</div>
 							</td>
 							<td>
-								<a class="button has-small-font-size" href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>">View</a>								
+								<div align="right">
+									<a class="button small has-small-font-size" href="<?php echo $siteURL.'/campaign?cmpid='.$rec->Id.'&showParent=true'; ?>">View</a>
+								</div>			
 							</td>
 							</tr>
-							<p>&nbsp;</p>
 						<?php 
 						} ?>
 					<?php } ?>
 				<?php }?>
 		</table>
-		<br/>
 
 		<div>
 		    <div>
-				<p class="alignleft has-medium-font-size"><b>Your Upcoming Events</b></p>
+				<h4 class="has-medium-font-size"><b>Your Upcoming Events</b></h4>
 			</div>
-			<div>
+			<table width="100%">
 				<?php if( count( $response_programs_signedup->records ) == 0 ) { ?>
-					<p>No programs found</p>
+					<tr><td>No programs found</td></tr>
 				<?php } else { ?>
-					<div class="clearfix">
 				<?php 
 				$shownParentCampaigns = [];
 				foreach ($response_programs_signedup->records as $record_signedup) {
@@ -181,48 +182,53 @@ function wp_focus_program( $atts ) {
 					}*/
 
 					//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
-					if( $campRec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 ) {
+					/*if( $campRec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 ) {
 						$addtolist = false;
 					}
 
 					//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact)  then don't display campaign
-					if( $rec->fields->TYI_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
+					if( $campRec->fields->TYA_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
 						$addtolist = false;
-					}
+					}*/
 					
 					if( $addtolist ) {
 					?>
-						<div class="five-sixths first">
-							<h6><b><?php if( $campRec->fields ) { echo $campRec->fields->Name;
-								/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></b></h6>
-							<div class="has-small-font-size">
-								<?php if( $record_signedup ) { echo $record_signedup->fields->Contact->Name; } ?>
-							</div>
-			 				<div class="has-small-font-size">
-								<?php 
-								if( $campRec->fields ) {
-									$date = date_create( $campRec->fields->StartDate );
-									echo date_format($date,"F d, Y");
-								}
-								//display respective opportunity price
-								if( $record_signedup ) {
-									$reqArrKey = $record_signedup->fields->Contact->Id.'_'.$campRec->Id;
-									if( array_key_exists( $reqArrKey, $opportunityEvents ) ) {
-										echo '<br /> Total Due: $'.$opportunityEvents[ $reqArrKey ];
+						<tr>
+							<td>
+								<div class="has-small-font-size"><b><?php if( $campRec->fields ) { echo $campRec->fields->Name;
+									/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/ } ?></b></div>
+								<div class="has-small-font-size">
+									<?php if( $record_signedup ) { echo $record_signedup->fields->Contact->Name; } ?>
+								</div>
+								<div class="has-small-font-size">
+									<?php 
+									if( $campRec->fields ) {
+										$date = date_create( $campRec->fields->StartDate );
+										echo date_format($date,"F d, Y");
 									}
-								}
-								?>
-							</div>
-						</div>	
-							<div class="one-sixth">
-								<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id.'&showParent=false'; ?>" class="button">View</a>
-							</div>
-						<p>&nbsp;</p>
+									//display respective opportunity price
+									if( $record_signedup ) {
+										$reqArrKey = $record_signedup->fields->Contact->Id.'_'.$campRec->Id;
+										if( array_key_exists( $reqArrKey, $opportunityEvents ) ) {
+											if( $campRec->fields && $record_signedup && $opportunityEvents[ $reqArrKey ] != 0 ) {
+												echo '<br /> Total Due: $'.$opportunityEvents[ $reqArrKey ];
+												echo '&nbsp;&nbsp;<a href="https://www.tfaforms.com/4726609?tfa_2='.$campRec->fields->Name.'&tfa_1='.$record_signedup->fields->Contact->Name.'&tfa_3='.$opportunityEvents[ $reqArrKey ].'">Pay Now</a>';
+											}
+										}
+									}
+									?>
+								</div>
+							</td>	
+							<td width="90">
+								<div align="right">
+									<a href="<?php echo $siteURL.'/campaign?cmpid='.$campRec->Id.'&showParent=false'; ?>" class="button small has-small-font-size">View</a>
+								</div>
+							</td>
+						</tr>
 				<?php } 
 					}	?>
-					</div>
 				<?php }	?>	
-			</div>
+			</table>
 		</div>
 	<?php } 
 }
@@ -462,11 +468,11 @@ function render_focus_volunteer_landing_page( $atts ) {
 			if( $attrs[ 'showmyjobs' ] == 'true' ) {	//show my jobs only when it is set in shortcode
 			?>
 				<div>
-					<p>My Jobs</p>
-					<div>
+					<h4 class="has-medium-font-size">My Jobs</h4>
+					<table width="100%">
 						<?php
 						if( count( $response_myjobs->records ) > 0 ) { ?>
-							<div>
+							
 								<?php foreach ( $response_myjobs->records as $record_myjob ) { 
 										$record_myjob = new SObject( $record_myjob );
 										$jobRec = new SObject( $record_myjob->fields->GW_Volunteers__Volunteer_Job__r );
@@ -474,34 +480,36 @@ function render_focus_volunteer_landing_page( $atts ) {
 											$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );	
 										}										
 								?>
-								<div>
-									<h6><b><?php if( $jobRec->fields ) { echo $jobRec->fields->Name ; }?></h6></h6>
-									<div class="has-small-font-size"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name ; }?><span style="margin-left:7px;">
-									<?php 
-										$date = date_create( $record_myjob->fields->GW_Volunteers__Start_Date__c );
-										echo date_format($date,"F d, Y");?>
-									</span></div>
-								</div>
+								<tr>
+									<td>
+										<div class="has-small-font-size"><b><?php if( $jobRec->fields ) { echo $jobRec->fields->Name ; }?></b></div>
+										<div class="has-small-font-size"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name ; }?><span style="margin-left:7px;">
+										<?php 
+											$date = date_create( $record_myjob->fields->GW_Volunteers__Start_Date__c );
+											echo date_format($date,"F d, Y");?>
+										</span></div>
+									</td>
+								</tr>
 								<?php
 								} ?>
-							</div>
+							
 						<?php 
 						} else {
 							echo '<p>No opportunities found</p>';
 						} 
 						?>
-					</div>
+					</table>
 				</div>
 				<?php } ?>
 				<br/>
 				<div>
-					<div>
-						<p class="alignleft has-medium-font-size"><b>Your Volunteer Activities</b></p>
+					<div class="clearfix">
+						<h4 class="alignleft has-medium-font-size"><b>Your Volunteer Activities</b></h4>
 						<?php if( $attrs['alloppslink'] == 'true' ) { ?>
 							<a href="<?php echo $siteURL.'/volunteer-jobs';?>" class="alignright has-small-font-size">More Opps</a>
 						<?php } ?>
 					</div>
-					<div>
+					<table width="100%">
 						<?php
 						if( count( $response_jobs->records ) > 0 ) { ?>
 						
@@ -512,20 +520,19 @@ function render_focus_volunteer_landing_page( $atts ) {
 									$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );
 								}
 							?>
-							<div class="clearfix">
-								<div class="five-sixths first">
-									<h6><b><?php if( $jobRec->fields ) { echo $jobRec->fields->Name; }?></b></h6>
+							<tr>
+								<td>
+									<div class="has-small-font-size"><b><?php if( $jobRec->fields ) { echo $jobRec->fields->Name; }?></b></div>
 									<div class="has-small-font-size"><?php if( $campaignRec && $campaignRec->fields ) { echo $campaignRec->fields->Name;} ?><span style="margin-left:7px;">
 									<?php 
 									$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
 									echo date_format($date,"F d, Y");?>
 									</span></div>
-								</div>
-								<div class="one-sixth">			
-									<a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="button">View</a>
-								</div>
-								<p>&nbsp;</p>
-							</div>
+								</td>
+								<td>			
+									<div align="right"><a href="<?php echo $siteURL . '/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591'; ?>" class="button small">View</a></div>
+								</td>
+							</tr>
 							<?php
 							} ?>
 						
@@ -533,7 +540,7 @@ function render_focus_volunteer_landing_page( $atts ) {
 						} else {
 							echo '<p>No opportunities found</p>';
 						} ?>
-					</div>
+					</table>
 				</div>
 			<?php 
 		} 
@@ -876,49 +883,92 @@ function render_focus_account_information() {
 	$currentUser = wp_get_current_user();
 	?>
 	<div>
-		<table style="width:100%">
+		<table width="100%">
 			<tr>
-    				<td valign="top" width="20%"><?php echo get_avatar( $currentUser->ID, 50 ); ?></td>
-    				<td>
-				<div class="has-medium-font-size"><b><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></b></div>
-				<div>
+    			<td valign="middle" width="60"><?php echo get_avatar( $currentUser->ID, 50 ); ?></td>
+    			<td>
+				<p></p>
+				<h4 class="has-medium-font-size"><b><?php echo $contactRec->fields->Account->npo02__Informal_Greeting__c;?></b></h4>
+				
                         	<?php if( $contactRec->fields->Account->CreatedDate != '' ) { ?>              
-                                        	<p class="has-regular-font-size"><img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" width="21"/>
+                                        	<div class="has-regular-font-size"><img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" width="21"/>
                                         	<span>
                                                 	<?php 
                                                 	$date=date_create( $contactRec->fields->Account->CreatedDate );
                                                 	echo 'Family Since '.date_format($date,"Y");?>
-                                        	</span></p>
+                                        	</span></div>
                         	<?php } ?>
+							<p></p>
 				</td>
 			</tr>
 			<tr>
 				<td colspan="2">
 				<div class="has-regular-font-size">
-				<h4>Activity</h4>
-				<span class="alignleft"><b>$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?></b> Donations <?php echo date("Y"); ?></span>
-				<a href="<?php echo $siteURL.'/donations';?>" class="has-small-font-size alignright">View All</a><br/>
-				<span class="alignleft"><b><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b> Volunteer Hours</span>
-				<a href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size alignright">View All</a><br/>
-				<span class="alignleft"><b>$<?php echo $contactRec->fields->Account->Total_Due__c; ?></b> Total Amount Due</span>
-				<a href="<?php echo $siteURL.'/programs';?>" class="has-small-font-size alignright">View All</a><br/>
+					<p></p>
+					<h4 class="alignleft has-medium-font-size"><b>Activity</b></h4>
+					<table width="100%">
+						<tr>
+							<td>
+								<b class="has-medium-font-size">$<?php echo $contactRec->fields->Account->npo02__TotalOppAmount__c; ?></b> <span class="has-small-font-size">Donations <?php echo date("Y"); ?></span>
+							</td>
+							<td width="50">
+								<div align="right"><span class="alignright"><a style="white-space: nowrap;" href="<?php echo $siteURL.'/donations';?>" class="has-small-font-size">View All</a></span></div>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<b class="has-medium-font-size"><?php echo $contactRec->fields->GW_Volunteers__Volunteer_Hours__c; ?></b> <span class="has-small-font-size">Volunteer Hours</span>
+							</td>
+							<td width="50">
+								<div align="right"><span class="alignright"><a style="white-space: nowrap;" href="<?php echo $siteURL.'/volunteers';?>" class="has-small-font-size">View All</a></span></div>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<b class="has-medium-font-size">$<?php echo $contactRec->fields->Account->Total_Due__c; ?></b> <span class="has-small-font-size">Total Amount Due</span>
+							</td>
+							<td width="50">
+								<div align="right"><span class="alignright"><a style="white-space: nowrap;" href="<?php echo $siteURL.'/programs';?>" class="has-small-font-size">View All</a></span></div>
+							</td>
+						</tr>
+						<tr><td colspan="2"><div class="has-regular-font-size">Focus + Fragile Thanks You!</div></td></tr>
+					</table>
 				</div>
-				<b>Focus + Fragile Thanks You!</b>
 				</td>
 			</tr>
 			<tr>
-				<td colspan="2">
-				<h4>User Information</h4>
-                        	<?php if( $BillingAddress != '' ) {?>
-                                	<p class="has-small-font-size"><img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" width="21"/>
-                                        <span><?php echo $BillingAddress;?></span></p>
-                        	<?php } if( $contactRec->fields->Account->Phone != '' ) {?>
-                                        <p class="has-small-font-size"><img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" width="21"/>
-                                        <span><?php echo $contactRec->fields->Account->Phone;?></span></p>
-                        	<?php } if( $contactRec->fields->Account->Primary_Email__c != '' ) { ?>
-                                        <p class="has-small-font-size"><img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="21"/>
-                                        <span><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></span></p>
-				</td> 
+				<td colspan="2" style="border-top:0 none;">
+				<h4 class="alignleft has-medium-font-size"><b>User Information</b></h4>
+				<table width="100%">
+					<?php if( $BillingAddress != '' ) {?>
+						<tr>
+							<td width="25">
+								<img src="https://image.flaticon.com/icons/svg/252/252106.svg" alt="" width="20"/>
+							</td>
+							<td>
+								<div class="has-small-font-size"><?php echo $BillingAddress;?></div>
+							</td>
+						</tr>
+                    <?php } if( $contactRec->fields->Account->Phone != '' ) {?>
+						<tr>
+							<td width="25">
+								<img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" width="20"/>
+							</td>
+							<td>
+								<div class="has-small-font-size"><?php echo $contactRec->fields->Account->Phone;?></div>
+							</td>
+						</tr>
+                    <?php } if( $contactRec->fields->Account->Primary_Email__c != '' ) { ?>
+						<tr>
+							<td width="25">
+								<img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="20"/>
+							</td>
+							<td>
+								<div class="has-small-font-size"><a href="mailto:<?php echo $contactRec->fields->Account->Primary_Email__c;?>"><?php echo $contactRec->fields->Account->Primary_Email__c;?></a></div>
+							</td>
+						</tr>
+					</table>	
+                </td> 
 			</tr>
                         <?php } ?>
 		</table>
