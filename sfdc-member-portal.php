@@ -2,8 +2,8 @@
 /**
  * Plugin Name: SFDC Web portal
  * Plugin URI: http://www.focus-ga.org/
- * Description: Cloudland Technologies - FOCUS Member Portal
- * Version: 1.2
+ * Description: Non-Profit SF Member Portal
+ * Version: 3.0
  * Author: Paul Cannon
  * Author URI: http://www.cloudlandtechnologies.com
  */
@@ -18,16 +18,17 @@ function check_for_shortcode_in_content( $post_id = null ) {
 	if ( $post_id ) {
 		$post_content = apply_filters('the_content', get_post_field('post_content', $post_id));
 		if (
-		has_shortcode( $post_content, 'focus_programs' ) ||
-		has_shortcode( $post_content, 'focus_campaign' ) ||
-		has_shortcode( $post_content, 'focus_volunteers' ) ||
-		has_shortcode( $post_content, 'focus_donations' ) ||
-		has_shortcode( $post_content, 'focus_totaldonation' ) ||
-		has_shortcode( $post_content, 'focus_totalvolunteerhours' ) ||
-		has_shortcode( $post_content, 'focus_volunteercalendar' ) ||
-		has_shortcode( $post_content, 'focus_accountinfo' ) ||
-		has_shortcode( $post_content, 'focus_donation_volunteer_details' ) ||
-		has_shortcode( $post_content, 'focus_familydashboard' )
+			//has_shortcode( $post_content, 'sfdc_programs' ) ||
+			has_shortcode( $post_content, 'sfdc_featured_programs' ) ||
+			has_shortcode( $post_content, 'sfdc_upcoming_programs' ) ||
+			has_shortcode( $post_content, 'sfdc_campaign' ) ||
+			has_shortcode( $post_content, 'sfdc_volunteers' ) ||
+			has_shortcode( $post_content, 'sfdc_donations' ) ||
+			has_shortcode( $post_content, 'sfdc_totaldonations' ) ||
+			has_shortcode( $post_content, 'sfdc_totaldvolunteerhours' ) ||
+			has_shortcode( $post_content, 'sfdc_volunteercalendar' ) ||
+			has_shortcode( $post_content, 'sfdc_accountinfo' ) ||
+			has_shortcode( $post_content, 'sfdc_donation_volunteer_details' )
 		) {
 			return true;
 		} else {
@@ -87,19 +88,16 @@ function connectWPtoSFandGetUserInfo() {
 	$storedUsername = '';
 	if ( defined('SFDC_MEMBER_PORTAL_USERNAME')) {
 		$storedUsername = SFDC_MEMBER_PORTAL_USERNAME;
-		echo $storedUsername;
 	}
 
 	$storedPassword = '';
 	if ( defined('SFDC_MEMBER_PORTAL_PASSWORD')) {
 		$storedPassword = SFDC_MEMBER_PORTAL_PASSWORD;
-		echo $storedPassword;
 	}
 
 	$storedSecurityToken = '';
 	if ( defined('SFDC_MEMBER_PORTAL_SECURITY_TOKEN')) {
 		$storedSecurityToken = SFDC_MEMBER_PORTAL_SECURITY_TOKEN;
-		echo $storedSecurityToken;
 	}
 
 	require_once ($pluginsUrl . 'soapclient/SforcePartnerClient.php');
@@ -130,7 +128,7 @@ function connectWPtoSFandGetUserInfo() {
 		$contactid = $contactRec->Id;
 		$accountid = $contactRec->fields->AccountId;
 	} else {
-		return '<p>We can not find your record at FOCUS. Please call administrator for more details</p>';
+		return '<p>We can not find your records. Please call administrator for more details</p>';
 	}
 	return (object) [
 		"response_user_info"  => $response_user_info,
@@ -141,10 +139,278 @@ function connectWPtoSFandGetUserInfo() {
 	];
 }
 
-// Add Programs shortcode [focus_programs]
-add_shortcode( 'focus_programs', 'wp_focus_program' );
 
-function wp_focus_program( $atts ) {
+function callRestAPI( $requestUrl ) {
+	//call rest api service from salesforce to fetch featured campaigns
+	$curlError = 'false';
+
+	$errorMsg = '';
+
+	//$url = "https://test.salesforce.com/services/oauth2/token";
+	$url = "https://login.salesforce.com/services/oauth2/token ";
+
+
+	$post = array(
+		"grant_type" => "password",
+		"client_id" => SFDC_MEMBER_PORTAL_CLIENT_ID,
+		"client_secret" => SFDC_MEMBER_PORTAL_CLIENT_SECRET,
+		//"username" => SFDC_MEMBER_PORTAL_SANDBOX_USERNAME,
+		"username" => SFDC_MEMBER_PORTAL_USERNAME,
+		//"password" => SFDC_MEMBER_PORTAL_SANDBOX_PASSWORD
+		"password" => SFDC_MEMBER_PORTAL_PASSWORD
+	);
+
+	$postText = http_build_query($post);
+
+	$curl = curl_init();
+
+	curl_setopt($curl, CURLOPT_URL, $url);
+	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($curl, CURLOPT_POST, true);
+	curl_setopt($curl, CURLOPT_POSTFIELDS, $postText);
+	curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+	curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+
+	$json_response = curl_exec($curl);
+
+	$status = curl_getinfo( $curl, CURLINFO_HTTP_CODE );
+
+	if ( $status != 200 ) {
+		$errorMsg = "Error: call to token URL $url failed with status $status, response $json_response, curl_error " . curl_error($curl) . ", curl_errno " . curl_errno( $curl );
+		$curlError = 'true';
+	}
+
+	curl_close($curl);
+
+	if( $curlError == 'false' ) {
+
+		$response = json_decode( $json_response, true );
+
+		if( isset( $response['access_token'] ) && isset( $response['instance_url'] ) ) {
+
+			$access_token = $response['access_token'];
+			$instance_url = $response['instance_url'];
+
+			$url = $instance_url.$requestUrl;
+
+			$curl2 = curl_init($url);
+			curl_setopt($curl2, CURLOPT_HEADER, false);
+			curl_setopt($curl2, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($curl2, CURLOPT_HTTPHEADER,
+				array("Authorization: OAuth $access_token"));
+
+			$json_response2 = curl_exec($curl2);
+
+			$status = curl_getinfo( $curl2, CURLINFO_HTTP_CODE );
+
+			if ( $status != 200 ) {
+				$errorMsg = "Error: call to token URL $url failed with status $status, response $json_response2, curl_error " . curl_error($curl2) . ", curl_errno " . curl_errno( $curl2 );
+				$curlError = 'true';
+			}
+		}
+	}
+	if( $curlError == 'true' ) {
+		$data = $errorMsg;
+	} else {
+		$data = $json_response2;
+	}
+
+	//$data => failure message or return data
+	return (object) [
+		"isError"  => $curlError,
+		"data" => $data
+	];
+}
+
+function render_wp_card( $card_name,  $apiResponse, $more_btn, $attrs )
+{
+	$wpCardContent = '<table>';
+	$wpCardContent .= '<tr>
+	<td style="border-top:none;">
+		<h4><b>'.$card_name.'</b></h4>
+	</td><td>';
+	if( $attrs && $attrs['alleventslink'] != '' ) {
+		$wpCardContent .= '<a href="' . esc_url( home_url('"'.$more_btn.'"') ) . '" class="alignright">More</a>';
+	}
+	$wpCardContent .=	'
+	</td>
+	</tr>';
+	if( isset( $apiResponse ) && $apiResponse->isError == 'false' ) {
+		$wpCardData = json_decode (json_decode( $apiResponse->data  ));
+
+		if( isset( $wpCardData->fieldsWrapperList ) ) {
+
+			if( isset( $wpCardData->recordList ) && count( $wpCardData->recordList ) > 0 ) {
+				$idx = 0;
+				foreach( $wpCardData->recordList as $recordData ) {
+
+					if( $card_name == 'Upcoming Events' ) {
+						if( isset( $attrs['upcominglimit'] ) && $attrs['upcominglimit'] != '' && $idx == $attrs['upcominglimit'] ) {
+							break;
+						}
+					} else {
+						if( isset( $attrs['featuredlimit'] ) && $attrs['featuredlimit'] != '' && $idx == $attrs['featuredlimit'] ) {
+							break;
+						}
+					}
+
+					$wpCardContent .= '<tr>';
+					$wpCardContent .= '<td>';
+
+					$firstFieldBold = true;
+					foreach ($wpCardData->fieldsWrapperList as $fieldData ) {
+						//$wpCardContent .= '<td>';
+						$record = new SObject( $recordData);
+						$record = get_object_vars( $record );
+						$relFieldName = $fieldData->name;
+						if( isset( $record['campaignRecord']->$relFieldName ) ) {
+							if ($firstFieldBold == true) {
+								$wpCardContent .= '<b>';
+							}
+							//$fieldValue = $recordData->campaignRecord->$relFieldName;
+							$fieldValue1 = trim($recordData->campaignRecord->$relFieldName,' ');
+							$fieldValue2 = trim($fieldValue1, '<br>');
+							$fieldValue = trim($fieldValue2);
+							//$wpCardContent .= ;
+
+							if($fieldData->isDateTime) {
+
+								$date = date_create( $fieldValue );
+								$wpCardContent .= date_format( $date,"F d, Y" );
+
+							}
+							else if($fieldData->isCurrency) {
+								$wpCardContent .= '$ '.trim($fieldValue);
+							}
+							else if($fieldData->isCheckbox) {
+								if($fieldValue == 1) {
+									$wpCardContent .= 'Yes';
+								}
+								else {
+									$wpCardContent .= 'No';
+								}
+							}
+							else {
+								$wpCardContent .= trim($fieldValue);
+							}
+
+							if ($firstFieldBold == true) {
+								$wpCardContent .= '</b>';
+								$firstFieldBold = false;
+							}
+							$wpCardContent .= '<br/>';
+						}
+
+					}
+					$wpCardContent .= '</td>';
+					$wpCardContent .= '<td>';
+					//view link
+					$showParentParam = '&showParent=true';
+					if( $card_name == 'Upcoming Events' ) {
+						$showParentParam = '&showParent=false';
+					}
+
+					$wpCardContent .= '<div align="right">
+                                <a class="button small" href="' . esc_url( home_url('/campaign?cmpid=' . $recordData->campaignRecord->Id . $showParentParam ) ) . '">';
+					if( isset( $wpCardData->landingPageButtonLink ) ) {
+						$wpCardContent .= $wpCardData->landingPageButtonLink;
+					} else {
+						$wpCardContent .= 'View';
+					}
+					$wpCardContent .= '</a>
+                            </div>';
+					$wpCardContent .= '</td>';
+					$wpCardContent .= '</tr>';
+					$idx++;
+				
+					//Pay now link
+					if( isset( $recordData->payNowLink ) && $recordData->payNowLink != '' ) {
+						$wpCardContent .= '<tr>';
+						$wpCardContent .= '<td>';
+
+						$wpCardContent .= $recordData->payNowLink;
+
+
+						$wpCardContent .= '</td>';
+						$wpCardContent .= '</tr>';
+					}
+					
+				}
+
+			} else {
+				$wpCardContent .= '<tr><td colspan="'.count( $wpCardContent->fieldsWrapperList ).'">No data found</td></tr>';
+			}
+
+			$wpCardContent .= '</table>';
+		} else {
+			$wpCardContent .= '<tr>
+			<td style="border-top:none;" colspan="2" >
+				<h4> No Data Found </h4>
+			</td>
+			</tr> </table>';
+
+		}
+
+	}  else {
+
+		$wpCardContent .= '<tr>
+			<td style="border-top:none;" colspan="2" >
+				<h4> No Data Found </h4>
+			</td>
+			</tr> </table>';
+
+		//$wpCardContent .= $apiResponse->data;	// show error message if failed
+	}
+
+	return $wpCardContent;
+
+}
+// Add sfdc_feature program  shortcode [sfdc_featured_programs]
+add_shortcode( 'sfdc_featured_programs', 'wp_sfdc_featured_programs' );
+
+function wp_sfdc_featured_programs( $atts ) {
+	// Do not render shortcode in the admin area
+	if ( is_admin() ) {
+		return;
+	}
+	$connectionData = connectWPtoSFandGetUserInfo();
+	// If $connectionData is a string, it means an error/exception occurred. Print the message
+	if ( is_string($connectionData) ) {
+		return $connectionData;
+	}
+	$response_user_info = $connectionData->response_user_info;
+	$mySforceConnection = $connectionData->SforceConnectionToken;
+	$contactid = $connectionData->currentContactId;
+	//exit();
+	$accountid = $connectionData->currentAccountId;
+	$contactRec = $connectionData->contactRecord;
+
+	$attrs = shortcode_atts( array(
+		'featuredlimit' => '',
+		'upcominglimit' => '',
+		'alleventslink' => ''
+	), $atts );
+
+	//call rest api service from salesforce to fetch featured campaigns
+	$url = "/services/apexrest/v1/programs?cntid=".$contactid."&featured=true";
+	//$url = "/services/apexrest/v1/programs?cntid=0035600000HZSjc&featured=true";
+
+	/*if( $attrs && $attrs['featuredlimit'] != '' ) {
+		$url .= '&limit='.$attrs['featuredlimit'];
+	}*/
+
+	$featuredEventsAPIResponse = callRestAPI( $url );
+
+	$featuredEventsContent = render_wp_card( "Featured Events", $featuredEventsAPIResponse,'programs', $attrs);
+	//return $featuredEventsContent.$upcomingEventsContent;
+	return $featuredEventsContent;
+}
+
+
+// Add sfdc upcoming Programs shortcode [sfdc_upcoming_programs]
+add_shortcode( 'sfdc_upcoming_programs', 'wp_sfdc_upcoming_programs' );
+
+function wp_sfdc_upcoming_programs( $atts ) {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -170,218 +436,21 @@ function wp_focus_program( $atts ) {
 		'alleventslink' => ''
 	), $atts );
 
-	$featuredLimitClause = '';
-	if( $attrs && $attrs['featuredlimit'] != '' ) {
-		$featuredLimitClause = ' LIMIT '.$attrs['featuredlimit'];
-	}
-
-	$upcomingLimitClause = '';
-	if( $attrs && $attrs['upcominglimit'] != '' ) {
-		$upcomingLimitClause = ' LIMIT '.$attrs['upcominglimit'];
-	}
-
-	$query_programs_signedup = "select Contact.Name, Contact.Id, Campaign.Id, Campaign.name, Campaign.StartDate, Campaign.Type, Campaign.Parent.Id, Campaign.Parent.Name, Campaign.Parent.StartDate, Campaign.TYA_monthly_invite__c, Campaign.TYA_camp_invite__c, Campaign.Parent.TYA_monthly_invite__c, Campaign.Parent.TYA_camp_invite__c, Campaign.Parent.Type from campaignmember where contactid in (select Contact.id from Contact where Contact.accountid = '".$accountid."') and Campaign.isActive=true and Campaign.StartDate > TODAY".$upcomingLimitClause;
-
-	$query_programs_scheduled = "select Id, Name, StartDate, Registration_Fee__c, isActive, Type, RecordTypeId, TYA_monthly_invite__c, TYA_camp_invite__c, Parent.Id, Parent.Name, Parent.StartDate, Parent.TYA_monthly_invite__c, Parent.TYA_camp_invite__c, Parent.Type from Campaign where isActive=true and Featured__c=true".$featuredLimitClause;
-
-	$query_contactsWithMonthlyInviteCheck = "select Id, Name from Contact where AccountId = '" . $accountid . "' AND TYA_Monthly_Invite__c = true";
-
-	$query_contactsWithCampInviteCheck = "select Id, Name from Contact where AccountId = '" . $accountid . "' AND TYA_Camp_Invite__c = true";
-
-	$query_accountOpportunities = "SELECT Id, npsp__Primary_Contact__c, npsp__Primary_Contact__r.AccountId, CampaignId, Name, Amount FROM Opportunity WHERE npsp__Primary_Contact__r.AccountId = '" . $accountid . "' AND CampaignId != '' ORDER BY CreatedDate DESC";
-
-	$querySuccess = true;
-
-	try {
-		$response_programs_signedup = $mySforceConnection->query($query_programs_signedup);
-		$response_programs_scheduled = $mySforceConnection->query($query_programs_scheduled);
-		$response_contactsWithMonthlyInviteCheck = $mySforceConnection->query($query_contactsWithMonthlyInviteCheck);
-		$response_contactsWithCampInviteCheck = $mySforceConnection->query($query_contactsWithCampInviteCheck);
-		$response_accountOpportunities = $mySforceConnection->query($query_accountOpportunities);
-	} catch( Exception $e ) {
-		return 'Something went wrong :'.$e->getMessage();
-		$querySuccess = false;
-	}
-
-	$content = '';
-
-	if( $querySuccess ) {
-		$opportunityEvents = array();
-		//create a map for current acount's contact opportunities and events
-		if( count( $response_accountOpportunities->records ) > 0 ) {
-			foreach ($response_accountOpportunities->records as $record_opp ) {
-				$record_opp = new SObject( $record_opp );
-				$arrKey = $record_opp->fields->npsp__Primary_Contact__c.'_'.$record_opp->fields->CampaignId;
-				if( !array_key_exists( $arrKey, $opportunityEvents ) ) {
-					$opportunityEvents[ $arrKey ] = $record_opp->fields->Amount;
-				}
-			}
-		}
-
-		$content .= '<table width="100%">';
-		$content .= '<tr>
-				<td style="border-top:none;"> 
-					<h4><b>Featured Events</b></h4>
-				</td>
-				<td>';
-		if( $attrs && $attrs['alleventslink'] != '' ) {
-			$content .= '<a href="' . esc_url( home_url('/programs') ) . '" class="alignright">More</a>';
-		}
-		$content .= '</td>
-			</tr>';
-
-		if( count( $response_programs_scheduled->records ) == 0 ) {
-			$content .= '
-			<tr>
-                <td>
-                    <p>No programs found</p>
-                </td>
-			</tr>';
-		} else {
-			$displayedParentCampaigns = [];
-			foreach ($response_programs_scheduled->records as $record_scheduled) {
-				$record_scheduled = new SObject( $record_scheduled );
-				$addtolist = true;
-				foreach ($response_programs_signedup->records as $record_signedup) {
-					$record_signedup = new SObject( $record_signedup );
-					$campRec = new SObject( $record_signedup->fields->Campaign );
-					if ( $campRec->fields && $campRec->fields->Name == $record_scheduled->fields->Name) {
-						$addtolist = false;
-					}
-				}
-				//if parent campaign is present for any campaign then only display parent campaign and skip child campaigns
-				//At campaign detail page if it is a parent campaign then display all it's child campaigns
-				$parentCampaign = new SObject( $record_scheduled->fields->Parent );
-				if( $parentCampaign->Id != ''
-				    && in_array( $parentCampaign->Id, $displayedParentCampaigns) ) {
-					$addtolist = false;
-				}
-				if( $parentCampaign->Id != '' ) {
-					$rec = $parentCampaign;
-					if( !in_array( $parentCampaign->Id, $displayedParentCampaigns) ) {
-						array_push( $displayedParentCampaigns, $parentCampaign->Id );
-					}
-				} else {
-					$rec = $record_scheduled;
-				}
-				//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
-				if( $rec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 ) {
-					$addtolist = false;
-				}
-				//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
-
-				if( $rec->fields->TYA_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
-					$addtolist = false;
-				}
-				if ($addtolist) {
-					$date = date_create( $rec->fields->StartDate );
-					$content .= '
-					<tr>
-                        <td width="70%">
-                            <div><b>' .  $rec->fields->Name . '</b></div>
-                            <div>' . date_format($date,"F d, Y") . '</div>
-                        </td>
-                        <td>
-                            <div align="right">
-                                <a class="button small" href="' . esc_url( home_url('/campaign?cmpid=' . $rec->Id . '&showParent=true') ) . '">View</a>
-                            </div>
-                        </td>
-                    </tr>';
-				}
-			}
-		}
-
-		$content .= '</table>';
-
-		$content .= '
-		<div>
-			<table width="100%">
-				<tr>
-				<td style="border-top:none;">
-				<h4><b>Your Upcoming Events</b></h4>
-				</td>
-				</tr>';
-
-		if( count( $response_programs_signedup->records ) == 0 ) {
-			$content .= '<tr><td>No programs found</td></tr>';
-		} else {
-			$shownParentCampaigns = [];
-			foreach ($response_programs_signedup->records as $record_signedup) {
-				$record_signedup = new SObject( $record_signedup );
-				$campRec = new SObject( $record_signedup->fields->Campaign );
-				$addtolist = true;
-				/*if( $campRec->fields && $campRec->fields->Parent )  {
-					$parentCampaign = new SObject( $campRec->fields->Parent );
-					if( in_array( $parentCampaign->Id, $shownParentCampaigns) ) {
-						$addtolist = false;
-					} else {
-						array_push( $shownParentCampaigns, $parentCampaign->Id );
-						$campRec = $parentCampaign;
-					}
-				}*/
-
-				//if monthly invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact) then don't display campaign
-				/*if( $campRec->fields->TYA_monthly_invite__c == 'true' && count( $response_contactsWithMonthlyInviteCheck->records ) == 0 ) {
-					$addtolist = false;
-				}
-
-				//if camp invite checkbox for campaign is set and any family member don't have same checkbox checked (at contact)  then don't display campaign
-				if( $campRec->fields->TYA_camp_invite__c == 'true' && count( $response_contactsWithCampInviteCheck->records ) == 0 ) {
-					$addtolist = false;
-				}*/
-
-				if( $addtolist ) {
-					$content .= '<tr><td><div><b>';
-					if( $campRec->fields ) {
-						$content .= $campRec->fields->Name;
-						/*if( $campRec->fields->Parent ) { echo ' parent: '.$campRec->fields->Parent->Name; }*/
-					}
-					$content .= '</b></div>';
-
-					$content .= '<div>';
-					if( $record_signedup ) {
-						$content .= $record_signedup->fields->Contact->Name;
-					}
-					$content .= '</div>';
-
-					$content .= '<div>';
-					if( $campRec->fields ) {
-						$date = date_create( $campRec->fields->StartDate );
-						$content .= date_format($date,"F d, Y");
-					}
-					//display respective opportunity price
-					if( $record_signedup ) {
-						$reqArrKey = $record_signedup->fields->Contact->Id.'_'.$campRec->Id;
-						if( array_key_exists( $reqArrKey, $opportunityEvents ) ) {
-							if( $campRec->fields && $record_signedup && $opportunityEvents[ $reqArrKey ] != 0 ) {
-								$content .= '<br /> Total Due: $'.$opportunityEvents[ $reqArrKey ];
-								$content .= '&nbsp;&nbsp;<a href="https://www.tfaforms.com/4726609?tfa_2='.$campRec->fields->Name.'&tfa_1='.$record_signedup->fields->Contact->Name.'&tfa_3='.$opportunityEvents[ $reqArrKey ].'">Pay Now</a>';
-							}
-						}
-					}
-					$content .= '</div></td>';
-
-					$content .= '<td width="90">
-	                                <div align="right">
-                                        <a href="' . esc_url( home_url('/campaign?cmpid='.$campRec->Id.'&showParent=false') ) . '" class="button small">View</a>
-                                    </div>
-                                </td>
-                            </tr>';
-				}
-			}
-		}
-
-		$content .= '</table></div>';
-	}
-
-	return $content;
-
+	//call rest api service from salesforce to fetch upcoming campaigns
+	$url = "/services/apexrest/v1/programs?cntid=".$contactid."&upcoming=true";
+	//$url = "/services/apexrest/v1/programs?cntid=0035600000HZSjc&upcoming=true";
+	/*if( $attrs && $attrs['upcominglimit'] != '' ) {
+		$url .= '&limit='.$attrs['upcominglimit'];
+	}*/
+	$upcomingEventsAPIResponse = callRestAPI( $url );
+	$upcomingEventsContent = render_wp_card( "Upcoming Events", $upcomingEventsAPIResponse, 'programs', $attrs);
+	return $upcomingEventsContent;
 }
 
-// Add Campaigns shortcode [focus_campaign]
-add_shortcode( 'focus_campaign', 'render_focus_campaign_landing_page' );
+// Add Campaigns shortcode [sfdc_campaign]
+add_shortcode( 'sfdc_campaign', 'render_sfdc_campaign_landing_page' );
 
-function render_focus_campaign_landing_page() {
+function render_sfdc_campaign_landing_page() {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -403,13 +472,14 @@ function render_focus_campaign_landing_page() {
 	if ( ( isset($_GET['formid']) && $_GET['formid'] ) && shortcode_exists('formassembly') ) {
 
 		$formId = $_GET['formid'];
-		return do_shortcode( '[formassembly formid=' . $formId . ']' );
+		// return do_shortcode( '[formassembly formid=' . $formId . ' iframe=true]' );
+		return '<p><a href="https://tfaforms.com/' . $formId . '?' . $_SERVER['QUERY_STRING'] . '" target="_blank">Open Form in New Window</a></p>' . do_shortcode( '[formassembly formid=' . $formId . ' iframe=true]' );
 
 	} elseif( isset( $_GET['cmpid'] ) && $_GET['cmpid'] ) {
 
 		$query_currentaccount_contacts    = "select Id, Name from Contact where AccountId = '" . $accountid . "'";
 
-		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c, Parent.Id  from Campaign where ID='" . sanitize_text_field($_GET['cmpid']) . "'";
+		$query_campaigndetails    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c, Parent.Id  from Campaign where Id='" . sanitize_text_field($_GET['cmpid']) . "'";
 
 		$query_childCampaigns    = "select Id, Name, Description, Location__c, StartDate, EndDate, Registration_Fee__c, isActive, Type, Registration_Date__c, Registration_End_Date__c, Parent.Id  from Campaign where ParentId='" . sanitize_text_field($_GET['cmpid']) . "'";
 
@@ -443,6 +513,7 @@ function render_focus_campaign_landing_page() {
 
 			}
 
+			//print_r($response_campaigndetails);
 			if ( count( $response_campaigndetails->records ) > 0 ) {
 
 				$campaignRecords = [];
@@ -542,10 +613,169 @@ function render_focus_campaign_landing_page() {
 	}
 }
 
-// Add Volunteer Jobs [focus_volunteers]
-add_shortcode( 'focus_volunteers', 'render_focus_volunteer_landing_page' );
+// Add Volunteer Jobs [sfdc_volunteers]
+add_shortcode( 'sfdc_volunteers', 'render_sfdc_volunteer_landing_page' );
 
-function render_focus_volunteer_landing_page( $atts ) {
+
+function render_wp_card_volunteer( $card_name,  $apiResponse, $more_btn, $attrs, $contactid )
+{
+	$wpCardContent = '<table>';
+	$wpCardContent .= '<tr>
+	<td style="border-top:none;">
+		<h4><b>'.$card_name.'</b></h4>
+	</td><td>';
+	if( $attrs['alloppslink'] == 'true' ) {
+		$wpCardContent .= '<a href="' . esc_url( home_url('"'.$more_btn.'"') ) . '" class="alignright">More</a>';
+	}
+	$wpCardContent .=	'
+	</td>
+	</tr>';
+	if( isset( $apiResponse ) && $apiResponse->isError == 'false' ) {
+		$wpCardData = json_decode (json_decode( $apiResponse->data  ));
+		/*echo "<pre>";
+		print_r($wpCardData);
+		exit(); */
+		if( isset( $wpCardData->fieldsWrapperList ) ) {
+
+			if( isset( $wpCardData->recordList ) && count( $wpCardData->recordList ) > 0 ) {
+				foreach( $wpCardData->recordList as $recordList) {
+
+					$wpCardContent .= '<tr>';
+					$wpCardContent .= '<td>';
+					foreach( $recordList as $key=>$record1 ) {
+						if($record1 == '')
+							continue;
+						$firstFieldBold = true;
+						foreach ($wpCardData->fieldsWrapperList as $fieldData ) {
+							$record = new SObject( $record1 );
+							$record = get_object_vars( $record );
+							$fieldName = $fieldData->name;
+							$pos = strrpos($fieldData->name, ".");
+							if($pos)
+							{
+								$relField = explode('.', $fieldData->name);
+								$fieldName = $relField[1];
+								if( isset( $record[$relField[0]] ) ) {
+									$relFieldName = $relField[1];
+									if( isset( $record[$relField[0]]->$relFieldName) ) {
+										if ($firstFieldBold == true) {
+											$wpCardContent .= '<b>';
+										}
+
+										$fieldValue1 = trim($record[$relField[0]]->$relFieldName,' ');
+										$fieldValue2 = trim($fieldValue1, '<br>');
+										$fieldValue = trim($fieldValue2);
+										if($fieldData->isDateTime) {
+											//$wpCardContent .= Date('Y-m-d h:s A',strtotime($fieldValue));
+											$date = date_create( $fieldValue );
+											$wpCardContent .= date_format( $date,"F d, Y" );
+										}
+										else if($fieldData->isCurrency) {
+											$wpCardContent .= '$ '.trim($fieldValue);
+										}
+										else if($fieldData->isCheckbox) {
+											if($fieldValue == 1)
+												$wpCardContent .= 'Yes';
+											else
+												$wpCardContent .= 'No';
+										}
+										else {
+											$wpCardContent .= trim($fieldValue);
+										}
+
+										if ($firstFieldBold == true) {
+											$wpCardContent .= '</b>';
+										}
+
+										$wpCardContent .= '<br/>';
+									}
+								}
+							}
+							else
+							{
+								if( isset( $record[ $fieldName ] ) ) {
+									if ($firstFieldBold == true) {
+										$wpCardContent .= '<b>';
+									}
+
+									//$fieldValue = strip_tags($record[ $fieldName ], '<br/>');
+									$fieldValue1 = trim($record[ $fieldName ],' ');
+									$fieldValue2 = trim($fieldValue1, '<br>');
+									$fieldValue = trim($fieldValue2);
+									if($fieldData->isDateTime) {
+										//$wpCardContent .= Date('Y-m-d h:s A',strtotime($fieldValue));
+										$date = date_create( $fieldValue );
+										$wpCardContent .= date_format( $date,"F d, Y" );
+									}
+									else if($fieldData->isCurrency) {
+										$wpCardContent .= '$ '.trim($fieldValue);
+									}
+									else if($fieldData->isCheckbox) {
+										if($fieldValue == 1)
+											$wpCardContent .= 'Yes';
+										else
+											$wpCardContent .= 'No';
+									}
+									else {
+										$wpCardContent .= trim($fieldValue);
+									}
+
+									if ($firstFieldBold == true) {
+										$wpCardContent .= '</b>';
+									}
+
+									$wpCardContent .= '<br/>';
+								}
+							}
+							$firstFieldBold = false;
+						}
+					}
+					$wpCardContent .= '</td>';
+
+					//view link
+					$viewBtnText = 'View';
+					if( isset( $wpCardData->landingPageButtonLink ) ) {
+						$viewBtnText = $wpCardData->landingPageButtonLink;
+					}
+					$wpCardContent .= '<td>';
+
+					$wpCardContent .= '<div align="right"><a href="' . esc_url( home_url('/volunteer-jobs?jobid=' . $recordList->volunteerJobRecord->Id . '&cntid=' . $contactid . '&formid=4713591') ) . '" class="button small">'.$viewBtnText.'</a></div>';
+
+					$wpCardContent .= '</td>';
+
+					$wpCardContent .= '</tr>';
+				}
+
+			} else {
+				$wpCardContent .= '<tr><td colspan="'.count( $wpCardContent->fieldsWrapperList ).'">No data found</td></tr>';
+			}
+
+			$wpCardContent .= '</table>';
+		} else {
+			$wpCardContent .= '<tr>
+			<td style="border-top:none;" colspan="2" >
+				<h4> No Data Found </h4>
+			</td>
+			</tr> </table>';
+
+		}
+
+	}  else {
+
+		$wpCardContent .= '<tr>
+			<td style="border-top:none;" colspan="2" >
+				<h4> No Data Found </h4>
+			</td>
+			</tr> </table>';
+
+		//$wpCardContent .= $apiResponse->data;	// show error message if failed
+	}
+
+	return $wpCardContent;
+
+}
+
+function render_sfdc_volunteer_landing_page( $atts ) {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -553,7 +783,6 @@ function render_focus_volunteer_landing_page( $atts ) {
 	}
 
 	$connectionData = connectWPtoSFandGetUserInfo();
-
 	// If $connectionData is a string, it means an error/exception occurred. Print the message
 	if ( is_string($connectionData) ) {
 		return $connectionData;
@@ -566,181 +795,39 @@ function render_focus_volunteer_landing_page( $atts ) {
 
 	$attrs = shortcode_atts( array(
 		'showmyjobs' => 'true',
-		'showalljobs' => 'false',
-		'alloppslink' => 'false'
+		'showalljobs' => 'true',
+		'alloppslink' => 'true'
 	), $atts );
 
 	if ( ( isset($_GET['formid']) && $_GET['formid'] ) && shortcode_exists('formassembly') ) { //display form
-
 		$formId = $_GET['formid'];
-		return do_shortcode( '[formassembly formid=' . $formId . ']' );
+		//return do_shortcode( '[formassembly formid=' . $formId . ' iframe=true]' );
+		return '<p><a href="https://tfaforms.com/' . $formId . '?' . $_SERVER['QUERY_STRING'] . '" target="_blank">Open Form in New Window</a></p>' . do_shortcode( '[formassembly formid=' . $formId . ' iframe=true]' );
 
-	} else { //display list of volunteer jobs
-
+	} else {
+		$showmyjobs =  $showalljobs = $alloppslink =  '';
+		//echo "<pre>";
 		if( $attrs[ 'showmyjobs' ] == 'true' ) {
-			$query_my_jobs = "select Id, Name, GW_Volunteers__Contact__r.Name, GW_Volunteers__Volunteer_Job__c, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Start_Date__c, GW_Volunteers__Hours_Worked__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__c, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name from GW_Volunteers__Volunteer_Hours__c where GW_Volunteers__Contact__c='".$contactid."' AND GW_Volunteers__Start_Date__c > TODAY and GW_Volunteers__Start_Date__c = NEXT_N_DAYS:90";
+			$url = "/services/apexrest/v1/programs_volunteers/getVolunteerDetails?contactId=".$contactid."&showmyjobs=true";
+			//$url = "/services/apexrest/v1/programs_volunteers/getVolunteerDetails?contactId=0035600000HZSjI&showmyjobs=true";
+			$showMyjobsAPIResponse = callRestAPI( $url );
+			$showmyjobs = render_wp_card_volunteer( "My Jobs", $showMyjobsAPIResponse,'volunteers', $attrs, $contactid );
 		}
+
 		if( $attrs[ 'showalljobs' ] == 'true' ) {
-		
-			$query_jobs = "select GW_Volunteers__Volunteer_Job__r.Id, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Campaign__r.Name, GW_Volunteers__Volunteer_Job__r.Name, GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Description__c, GW_Volunteers__Start_Date_Time__c , GW_Volunteers__Duration__c from GW_Volunteers__Volunteer_Shift__c where GW_Volunteers__Volunteer_Job__r.GW_Volunteers__Display_on_Website__c = true AND GW_Volunteers__Start_Date_Time__c > TODAY and GW_Volunteers__Start_Date_Time__c = NEXT_N_DAYS:90";
+			$url = "/services/apexrest/v1/programs_volunteers/getVolunteerDetails?showalljobs=true";
+			$showAlljobsAPIResponse = callRestAPI( $url );
+			$showalljobs = render_wp_card_volunteer( "All Jobs", $showAlljobsAPIResponse,'volunteers', $attrs, $contactid );
 		}
-		$querySuccess = true;
-
-		try {
-			if( $attrs[ 'showmyjobs' ] == 'true'  ) {
-				$response_myjobs = $mySforceConnection->query( $query_my_jobs );
-			}
-			if( $attrs[ 'showalljobs' ] == 'true'  ) {
-				$response_jobs = $mySforceConnection->query( $query_jobs );
-			}
-		} catch( Exception $e ) {
-			return 'Something went wrong :'.$e->getMessage();
-			$querySuccess = false;
-		}
-
-		if( $querySuccess ) {
-			$content = '';
-
-			
-			if( $attrs[ 'showmyjobs' ] == 'true' ) {	//show my jobs only when it is set in shortcode
-				$content .=	'
-				<div>
-					<table width="100%">
-					<tr>
-					<td style="border-top:none;">
-						<h4><b>Your Volunteer Jobs</b></h4>
-					</td><td>';
-					if( $attrs['alloppslink'] == 'true' ) {
-						$content .= '<a href="' . esc_url( home_url('/volunteer-jobs') ) . '" class="alignright">More</a>';
-					}
-				$content .=	'
-					</td>
-					</tr>';
-				
-				
-				if( count( $response_myjobs->records ) > 0 ) {
-
-					foreach ( $response_myjobs->records as $record_myjob ) {
-						$record_myjob = new SObject( $record_myjob );
-						$jobRec = new SObject( $record_myjob->fields->GW_Volunteers__Volunteer_Job__r );
-						if( $jobRec->fields ) {
-							$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );
-						}
-						$content .=	'
-                        <tr>
-                            <td>
-                                <div><b>';
-
-						if( $jobRec->fields ) {
-							$content .= $jobRec->fields->Name ;
-						}
-
-						$content .= '</b></div>';
-					}
-
-					$content .= '<div>';
-
-					if( $campaignRec && $campaignRec->fields ) {
-						$content .= $campaignRec->fields->Name ;
-					}
-					$content .= '</div>';
-
-					$content .= '<div>';
-
-					$content .= '<span style="margin-left:7px;">';
-
-					$date = date_create( $record_myjob->fields->GW_Volunteers__Start_Date__c );
-					$content .= date_format($date,"F d, Y");
-
-					$content .= '</span></div>';
-
-					$content .= '
-							</td>';
-					$content .= '
-						<td>
-							<div align="right"><a href="' . esc_url( home_url('/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591') ) . '" class="button small">View</a></div>
-						</td>
-                    </tr>';
-
-				} else {
-					$content .= '<tr> <td> <p>No opportunities found</p></td><td></td></tr>';
-				}
-
-				$content .= '
-						</table>
-					</div>';
-			}
-
-		}
-
-		if( $attrs[ 'showalljobs' ] == 'true' ) {	//show my jobs only when it is set in shortcode
-
-			$content .= '
-				<br/>
-				<div>
-					<div class="clearfix">
-						<h4 class="alignleft">Volunteer Opportunties</h4>';
-
-			$content .= '
-				</div>
-				<table width="100%">';
-
-			if( count( $response_jobs->records ) > 0 ) {
-				foreach ( $response_jobs->records as $record_job ) {
-					$record_job = new SObject( $record_job );
-					$jobRec = new SObject( $record_job->fields->GW_Volunteers__Volunteer_Job__r );
-					if( $jobRec->fields ) {
-						$campaignRec = new SObject( $jobRec->fields->GW_Volunteers__Campaign__r );
-					}
-					$content .= '
-							<tr>
-								<td>
-									<div><b>';
-
-					if( $jobRec->fields ) {
-						$content .= $jobRec->fields->Name;
-					}
-
-					$content .= '</b></div>';
-
-					$content .= '<div>';
-
-					if( $campaignRec && $campaignRec->fields ) {
-						$content .= $campaignRec->fields->Name;
-					}
-
-					$content .= '<span style="margin-left:7px;">';
-					$date = date_create( $record_job->fields->GW_Volunteers__Start_Date_Time__c );
-					$content .= date_format($date,"F d, Y");
-
-					$content .= '</span>
-							</div>
-						</td>';
-
-					$content .= '
-						<td>
-							<div align="right"><a href="' . esc_url( home_url('/volunteer-jobs?jobid=' . $jobRec->Id . '&cntid=' . $contactid . '&formid=4713591') ) . '" class="button small">View</a></div>
-						</td>
-					</tr>';
-				}
-
-			} else {
-				$content .= '<p>No opportunities found</p>';
-			}
-
-			$content .= '</table>
-					</div>';
-		}
-
-		return $content;
+		return $showmyjobs.$showalljobs;
 
 	}
 }
 
-// Add Volunteer Jobs [focus_volunteers]
-add_shortcode( 'focus_donations', 'render_focus_donation_landing_page' );
+// Add Volunteer Jobs [sfdc_volunteers]
+add_shortcode( 'sfdc_donations', 'render_sfdc_donation_landing_page' );
 
-function render_focus_donation_landing_page() {
+function render_sfdc_donation_landing_page() {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -774,7 +861,7 @@ function render_focus_donation_landing_page() {
 			$recordTypeRec = new SObject( $response_opportunity_recordtype->records[0] );
 			$recordTypeId = $recordTypeRec->Id;
 
-			$query_opportunites = "select Id, Name, Amount, Campaign.Name, npsp__Primary_Contact__r.Name, CloseDate from Opportunity where RecordTypeId = '".$recordTypeId."' 
+			$query_opportunites = "select Id, Name, Amount, Campaign.Name, npsp__Primary_Contact__r.Name, CloseDate from Opportunity where RecordTypeId = '".$recordTypeId."'
 			and AccountId = '".$accountid."'";
 			$querySuccessInner = true;
 			try {
@@ -831,10 +918,10 @@ function render_focus_donation_landing_page() {
 	}
 }
 
-// Shortcode to show total amount of donations current year or last year [focus_totaldonation]
-add_shortcode( 'focus_totaldonation', 'render_focus_total_donation_amount' );
+// Shortcode to show total amount of donations current year or last year [sfdc_totaldonations]
+add_shortcode( 'sfdc_totaldonations', 'render_sfdc_total_donation_amount' );
 
-function render_focus_total_donation_amount( $atts ) {
+function render_sfdc_total_donation_amount( $atts ) {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -906,10 +993,10 @@ function render_focus_total_donation_amount( $atts ) {
 	}
 }
 
-// Shortcode to display total number of volunteer working hours for current year or last year [focus_totaldonation]
-add_shortcode( 'focus_totalvolunteerhours', 'render_focus_total_volunteer_hours' );
+// Shortcode to display total number of volunteer working hours for current year or last year [sfdc_totaldonations]
+add_shortcode( 'sfdc_totaldvolunteerhours', 'render_sfdc_total_volunteer_hours' );
 
-function render_focus_total_volunteer_hours( $atts ) {
+function render_sfdc_total_volunteer_hours( $atts ) {
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
 		return;
@@ -971,10 +1058,10 @@ function render_focus_total_volunteer_hours( $atts ) {
 	}
 }
 
-// Add Volunteer Jobs [focus_volunteercalendar]
-add_shortcode( 'focus_volunteercalendar', 'render_focus_volunteer_calendar' );
+// Add Volunteer Jobs [sfdc_volunteercalendar]
+add_shortcode( 'sfdc_volunteercalendar', 'render_sfdc_volunteer_calendar' );
 
-function render_focus_volunteer_calendar( $atts ) {
+function render_sfdc_volunteer_calendar( $atts ) {
 
 	// Do not render shortcode in the admin area
 	if ( is_admin() ) {
@@ -1005,10 +1092,10 @@ function render_focus_volunteer_calendar( $atts ) {
 
 }
 
-// Display focus account information [focus_accountinfo]
-add_shortcode( 'focus_accountinfo', 'render_focus_account_information' );
+// Display sfdc account information [sfdc_accountinfo]
+add_shortcode( 'sfdc_accountinfo', 'render_sfdc_account_information' );
 
-function render_focus_account_information($atts) {
+function render_sfdc_account_information($atts) {
 
 	// Do not render sortcode in the admin area
 	if ( is_admin() ) {
@@ -1016,8 +1103,9 @@ function render_focus_account_information($atts) {
 	}
 
 	$attrs = shortcode_atts( array(
-			'showupdateform' => 'false'
-		), $atts );
+		'showupdateform' => 'false',
+		'debug' => 'false'
+	), $atts );
 
 	$connectionData = connectWPtoSFandGetUserInfo();
 
@@ -1032,18 +1120,33 @@ function render_focus_account_information($atts) {
 	$accountid = $connectionData->currentAccountId;
 	$contactRec = $connectionData->contactRecord;
 
+	if( $attrs[ 'debug' ] == 'true' ) {
+		echo 'contactid: '.$contactid.'<br />';
+		echo 'accountid: '.$accountid.'<br />';
+		echo 'contactRec: '; print_r( $contactRec );
+		echo '<br />';
+		echo 'contactRec fields: '; print_r( $contactRec->fields );
+		echo '<br />';
+		echo 'contactRec fields account: '; print_r( $contactRec->fields->Account );
+		echo '<br />';
+		echo 'contactRec fields account informal greetings : '; print_r( $contactRec->fields->Account->npo02__Informal_Greeting__c );
+		echo '<br />';
+		echo 'contactRec fields account informal greetings333 : '; print_r( $contactRec->fields->Account->fields->npo02__Informal_Greeting__c );
+		echo '<br />';
+	}
+
 	$BillingAddress = '';
-	if( $contactRec->fields->Account->BillingStreet ) {
-		$BillingAddress .= $contactRec->fields->Account->BillingStreet.' <br/>';
+	if( $contactRec->fields->Account->fields->BillingStreet ) {
+		$BillingAddress .= $contactRec->fields->Account->fields->BillingStreet.' <br/>';
 	}
-	if( $contactRec->fields->Account->BillingCity ) {
-		$BillingAddress .= $contactRec->fields->Account->BillingCity.', ';
+	if( $contactRec->fields->Account->fields->BillingCity ) {
+		$BillingAddress .= $contactRec->fields->Account->fields->BillingCity.', ';
 	}
-	if( $contactRec->fields->Account->BillingState ) {
-		$BillingAddress .= $contactRec->fields->Account->BillingState.' ';
+	if( $contactRec->fields->Account->fields->BillingState ) {
+		$BillingAddress .= $contactRec->fields->Account->fields->BillingState.' ';
 	}
-	if( $contactRec->fields->Account->BillingPostalCode ) {
-		$BillingAddress .= $contactRec->fields->Account->BillingPostalCode.' ';
+	if( $contactRec->fields->Account->fields->BillingPostalCode ) {
+		$BillingAddress .= $contactRec->fields->Account->fields->BillingPostalCode.' ';
 	}
 	$currentUser = wp_get_current_user();
 
@@ -1055,13 +1158,13 @@ function render_focus_account_information($atts) {
     			<td valign="middle" width="60">' . get_avatar( $currentUser->ID, 50 ) . '</td>
     			<td>
 				<p></p>
-				<h4><b>' . $contactRec->fields->Account->npo02__Informal_Greeting__c . '</b></h4>';
+				<h4><b>' . $contactRec->fields->Account->fields->npo02__Informal_Greeting__c . '</b></h4>';
 
-	if( $contactRec->fields->Account->CreatedDate != '' ) {
+	if( $contactRec->fields->Account->fields->CreatedDate != '' ) {
 		$content .= '<div><img src="https://image.flaticon.com/icons/svg/252/252091.svg" alt="" width="21"/>
                     <span>';
 
-		$date = date_create( $contactRec->fields->Account->CreatedDate );
+		$date = date_create( $contactRec->fields->Account->fields->CreatedDate );
 		$content .= 'Family Since '.date_format($date,"Y");
 
 		$content .= '</span></div>';
@@ -1078,7 +1181,7 @@ function render_focus_account_information($atts) {
 					<table width="100%">
 						<tr>
 							<td>
-								<b>$' . $contactRec->fields->Account->npo02__TotalOppAmount__c . '</b> <span>Donations ' .  date("Y") . '</span>
+								<b>$' . $contactRec->fields->Account->fields->npo02__TotalOppAmount__c . '</b> <span>Donations ' .  date("Y") . '</span>
 							</td>
 							<td width="50">
 								<div align="right"><span class="alignright"><a style="white-space: nowrap;" href="' . esc_url( home_url('/donations') ) . '">View All</a></span></div>
@@ -1094,13 +1197,13 @@ function render_focus_account_information($atts) {
 						</tr>
 						<tr>
 							<td>
-								<b>$' . $contactRec->fields->Account->Total_Due__c . '</b> <span>Total Amount Due</span>
+								<b>$' . $contactRec->fields->Account->fields->Total_Due__c . '</b> <span>Total Amount Due</span>
 							</td>
 							<td width="50">
 								<div align="right"><span class="alignright"><a style="white-space: nowrap;" href="' . esc_url( home_url('/programs') ) . '">View All</a></span></div>
 							</td>
 						</tr>
-						<tr><td colspan="2"><div>Focus + Fragile Thanks You!</div></td></tr>
+						<!--<tr><td colspan="2"><div>Focus + Fragile Thanks You!</div></td></tr>-->
 					</table>
 				</div>
 				</td>
@@ -1108,7 +1211,8 @@ function render_focus_account_information($atts) {
 			<tr>
 				<td colspan="2" style="border-top:none;">
 				<h4 class="alignleft"><b>User Information</b></h4>
-				<table width="100%">';
+				<table width="100%">
+				';
 
 	if( $BillingAddress != '' ) {
 		$content .= '<tr>
@@ -1121,33 +1225,38 @@ function render_focus_account_information($atts) {
 						</tr>';
 	}
 
-	if( $contactRec->fields->Account->Phone != '' ) {
+	if( $contactRec->fields->Account->fields->Phone != '' ) {
 		$content .= '<tr>
 							<td width="25">
 								<img src="https://image.flaticon.com/icons/svg/252/252050.svg" alt="" width="20"/>
 							</td>
 							<td>
-								<div>' . $contactRec->fields->Account->Phone . '</div>
+								<div>' . $contactRec->fields->Account->fields->Phone . '</div>
 							</td>
 						</tr>';
 	}
 
-	if( $contactRec->fields->Account->Primary_Email__c != '' ) {
+	if( $contactRec->fields->Account->fields->Primary_Email__c != '' ) {
 		$content .= '<tr>
-							<td width="25">
-								<img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="20"/>
-							</td>
-							<td>
-								<div><a href="mailto:' . $contactRec->fields->Account->Primary_Email__c . '">' . $contactRec->fields->Account->Primary_Email__c . '</a></div>
-							</td>
-						</tr>
-					</table>
-                </td>
-			</tr>';
+						<td width="25">
+							<img src="https://image.flaticon.com/icons/svg/252/252049.svg" alt="" width="20"/>
+						</td>
+						<td>
+							<div><a href="mailto:' . $contactRec->fields->Account->fields->Primary_Email__c . '">' . $contactRec->fields->Account->fields->Primary_Email__c . '</a></div>
+						</td>
+					</tr>';
 	}
-	if( $attrs[ 'showupdateform' ] <> '' ) { 
 	$content .= '
-			<tr><td colspan="2" style="border-top:none;"><a href="https://www.tfaforms.com/'. $attrs[ 'showupdateform' ] . '?actid='.$accountid . '">Update Family Information</a></td><tr>';
+				</table>
+				</td>
+			</tr>';
+	if( $attrs[ 'showupdateform' ] <> '' ) {
+		$content .= '
+			<tr>
+				<td colspan="2" style="border-top:none;">
+					<a href="https://www.tfaforms.com/'. $attrs[ 'showupdateform' ] . '?actid='.$accountid . '">Update Family Information</a>
+				</td>
+			</tr>';
 	}
 	$content .= '
 		</table>
@@ -1157,8 +1266,8 @@ function render_focus_account_information($atts) {
 
 }
 
-// Display focus family dashboard [focus_familydashboard]
-add_shortcode( 'focus_donation_volunteer_details', 'render_donation_volunteer_details' );
+// Display focus family dashboard [sfdc_familydashboard]
+add_shortcode( 'sfdc_donation_volunteer_details', 'render_donation_volunteer_details' );
 
 function render_donation_volunteer_details() {
 	// Do not render shortcode in the admin area
@@ -1187,12 +1296,12 @@ function render_donation_volunteer_details() {
 		<p>Thank you!</p>
 		<div>
 			<div>
-				<h2>$' . $contactRec->fields->Account->npo02__TotalOppAmount__c . '</h2>
+				<h2>$' . $contactRec->fields->Account->fields->npo02__TotalOppAmount__c . '</h2>
 				<a href="' . esc_url( home_url('/donations') ) . '">View All</a>
 				<div>Donations ' . date("Y") . '<br/>';
 
-	if( $contactRec->fields->Account->Level__r ) {
-		$content .= '<b>' . $contactRec->fields->Account->Level__r->Name . ' Level Donor</b>';
+	if( $contactRec->fields->Account->fields->Level__r ) {
+		$content .= '<b>' . $contactRec->fields->Account->fields->Level__r->Name . ' Level Donor</b>';
 	}
 
 	$content .= '
@@ -1208,28 +1317,4 @@ function render_donation_volunteer_details() {
 	</div>';
 
 	return $content;
-}
-
-// Display focus family dashboard [focus_familydashboard]
-add_shortcode( 'focus_familydashboard', 'render_focus_family_dashboard' );
-
-function render_focus_family_dashboard($atts) {
-
-	$attrs = shortcode_atts( array(
-		'showupdateform' => '',
-		'featuredlimit' => '3',
-		'upcominglimit' => '5'
-	), $atts );
-
-	$content = '
-	<div>
-		<div class="clearfix">
-			<div class="one-half first">' . do_shortcode( '[focus_accountinfo showupdateform="'.$attrs['showupdateform'].'"]' ) . '</div>
-			<div class="two-fourths">' . do_shortcode( '[focus_programs featuredlimit="'.$attrs['featuredlimit'].'" upcominglimit="'.$attrs['upcominglimit'].'" alleventslink="true"]' ) . do_shortcode( '[focus_volunteers alloppslink="true"]' ) . '
-			</div>
-		</div>
-	</div>';
-
-	return $content;
-
 }

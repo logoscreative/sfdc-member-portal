@@ -41,7 +41,7 @@ class SforceBaseClient {
 	protected $sforce;
 	protected $sessionId;
 	protected $location;
-	protected $version = '27.0';
+	protected $version = '20.0';
 
 	protected $namespace;
 
@@ -98,22 +98,17 @@ class SforceBaseClient {
 	 * Connect method to www.salesforce.com
 	 *
 	 * @param string $wsdl   Salesforce.com Partner WSDL
-   * @param object $proxy  (optional) proxy settings with properties host, port,
-   *                       login and password
-   * @param array $soap_options (optional) Additional options to send to the
-   *                       SoapClient constructor. @see
-   *                       http://php.net/manual/en/soapclient.soapclient.php
 	 */
-	public function createConnection($wsdl, $proxy=null, $soap_options=array()) {
+	public function createConnection($wsdl, $proxy=null) {
 		$phpversion = substr(phpversion(), 0, strpos(phpversion(), '-'));
 		
-		$soapClientArray = array_merge(array (
+		$soapClientArray = array (
 			'user_agent' => 'salesforce-toolkit-php/'.$this->version,
 			'encoding' => 'utf-8',
 			'trace' => 1,
 			'features' => SOAP_SINGLE_ELEMENT_ARRAYS,
 			'compression' => SOAP_COMPRESSION_ACCEPT | SOAP_COMPRESSION_GZIP
-		), $soap_options);
+		);
 
 		// We don't need to parse out any subversion suffix - e.g. "-01" since
 		// PHP type conversion will ignore it
@@ -578,20 +573,9 @@ class SforceBaseClient {
 	 */
 	public function delete($ids) {
 		$this->setHeaders("delete");
-		if(count($ids) > 200) {
-			$result = array();
-			$chunked_ids = array_chunk($ids, 200);
-			foreach($chunked_ids as $cids) {
-				$arg = new stdClass;
-				$arg->ids = $cids;
-				$result = array_merge($result, $this->sforce->delete($arg)->result);
-			}
-		} else {
-			$arg = new stdClass;
-			$arg->ids = $ids;
-			$result = $this->sforce->delete($arg)->result;
-		}
-		return $result;
+		$arg = new stdClass();
+		$arg->ids = $ids;
+		return $this->sforce->delete($arg)->result;
 	}
 
 	/**
@@ -680,12 +664,10 @@ class SforceBaseClient {
 	 * @param string Type   Object Type
 	 * @return DescribeLayoutResult
 	 */
-	public function describeLayout($type, array $recordTypeIds=null) {
+	public function describeLayout($type) {
 		$this->setHeaders("describeLayout");
 		$arg = new stdClass();
 		$arg->sObjectType = new SoapVar($type, XSD_STRING, 'string', 'http://www.w3.org/2001/XMLSchema');
-		if (isset($recordTypeIds) && count($recordTypeIds)) 
-			$arg->recordTypeIds = $recordTypeIds;
 		return $this->sforce->describeLayout($arg)->result;
 	}
 
@@ -803,12 +785,10 @@ class SforceBaseClient {
 	 */
 	public function query($query) {
 		$this->setHeaders("query");
-		$raw = $this->sforce->query(array (
+		$QueryResult = $this->sforce->query(array (
 					  'queryString' => $query
 		))->result;
-		$QueryResult = new QueryResult($raw);
-		$QueryResult->setSf($this); // Dependency Injection
-		return $QueryResult;
+		return new QueryResult($QueryResult);
 	}
 
 	/**
@@ -822,10 +802,8 @@ class SforceBaseClient {
 		$this->setHeaders("queryMore");
 		$arg = new stdClass();
 		$arg->queryLocator = $queryLocator;
-		$raw = $this->sforce->queryMore($arg)->result;
-		$QueryResult = new QueryResult($raw);
-		$QueryResult->setSf($this); // Dependency Injection
-		return $QueryResult;
+		$QueryResult = $this->sforce->queryMore($arg)->result;
+		return new QueryResult($QueryResult);
 	}
 
 	/**
@@ -837,12 +815,10 @@ class SforceBaseClient {
 	 */
 	public function queryAll($query, $queryOptions = NULL) {
 		$this->setHeaders("queryAll");
-		$raw = $this->sforce->queryAll(array (
+		$QueryResult = $this->sforce->queryAll(array (
 						'queryString' => $query
 		))->result;
-		$QueryResult = new QueryResult($raw);
-		$QueryResult->setSf($this); // Dependency Injection
-		return $QueryResult;
+		return new QueryResult($QueryResult);
 	}
 
 
@@ -943,22 +919,16 @@ class SforceSearchResult {
 	}
 }
 
-class QueryResult implements Iterator{
+class QueryResult {
 	public $queryLocator;
 	public $done;
 	public $records;
 	public $size;
 
-	public $pointer; // Current iterator location
-	private $sf; // SOAP Client
-	
 	public function __construct($response) {
 		$this->queryLocator = $response->queryLocator;
 		$this->done = $response->done;
 		$this->size = $response->size;
-		
-		$this->pointer = 0;
-		$this->sf = false;
 
 		if($response instanceof QueryResult) {
 			$this->records = $response->records;
@@ -967,39 +937,15 @@ class QueryResult implements Iterator{
 			if (isset($response->records)) {
 				if (is_array($response->records)) {
 					foreach ($response->records as $record) {
-						array_push($this->records, $record);
+						$sobject = new SObject($record);
+						array_push($this->records, $sobject);
 					};
 				} else {
-					array_push($this->records, $record);
+					$sobject = new SObject($response->records);
+					array_push($this->records, $sobject);
 				}
 			}
 		}
-	}
-	
-	public function setSf(SforceBaseClient $sf) { $this->sf = $sf; } // Dependency Injection
-	
-	// Basic Iterator implementation functions
-	public function rewind() { $this->pointer = 0; }
-	public function next() { ++$this->pointer; }
-	public function key() { return $this->pointer; }
-	public function current() { return new SObject($this->records[$this->pointer]); }
-	
-	public function valid() {
-		while ($this->pointer >= count($this->records)) {
-			// Pointer is larger than (current) result set; see if we can fetch more
-			if ($this->done === false) {
-				if ($this->sf === false) throw new Exception("Dependency not met!");
-				$response = $this->sf->queryMore($this->queryLocator);
-				$this->records = array_merge($this->records, $response->records); // Append more results
-				$this->done = $response->done;
-				$this->queryLocator = $response->queryLocator;
-			} else {
-				return false; // No more records to fetch
-			}
-		}
-		if (isset($this->records[$this->pointer])) return true;
-		
-		throw new Exception("QueryResult has gaps in the record data?");
 	}
 }
 
@@ -1014,7 +960,7 @@ class SObject {
 		}
 
 		foreach ($response as $responseKey => $responseValue) {
-			if (in_array(strval($responseKey), array('Id', 'type', 'any'))) {
+			if (in_array($responseKey, array('Id', 'type', 'any'))) {
 				continue;
 			}
 			$this->$responseKey = $responseValue;
@@ -1089,10 +1035,7 @@ class SObject {
 						}
 
 						if (sizeof($anArray) > 0) {
-							// To add more variables to the the top level sobject /* Added below 3 lines by DW */
-							if (is_null($this->fields)) {
-								$this->fields = new stdClass();
-							}
+							// To add more variables to the the top level sobject
 							foreach ($anArray as $key=>$children_sobject) {
 								$this->fields->$key = $children_sobject;
 							}
@@ -1133,9 +1076,6 @@ class SObject {
 			}
 		}
 	}
-	
-	function __get($name) {	return (isset($this->fields->$name))? $this->fields->$name : false; }
-	function __isset($name) { return isset($this->fields->$name); }
 
 	/**
 	 * Parse the "any" string from an sObject.  First strip out the sf: and then
